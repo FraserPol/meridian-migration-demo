@@ -1,0 +1,17 @@
+services:
+  # Stands in for the AWS RDS Postgres instance during local development.
+  # See infra/terraform/modules/aws-database for the real thing.
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: meridian
+      POSTGRES_PASSWORD: meridian
+      POSTGRES_DB: meridian
+    ports:
+      - "5432:5432"
+    volumes:
+      - meridian_pg_data:/var/lib/postgresql/data
+
+volumes:
+  meridian_pg_data:
