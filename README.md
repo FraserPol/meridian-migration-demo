@@ -11,6 +11,8 @@ folder). Read that first for the why; this README is the how.
 **Live demo:** _add your Vercel deployment URL here after `vercel deploy`_
 **Repo:** _add your public GitHub URL here after pushing_
 
+**Deploying this yourself?** Skip ahead to [`SETUP_INSTRUCTIONS.md`](./SETUP_INSTRUCTIONS.md) — explicit, copy-paste commands in order, from "push to GitHub" through to the full Terraform/Vault production setup.
+
 ## Demo accounts
 
 Password for all three: **`VercelDemo!2026`**
