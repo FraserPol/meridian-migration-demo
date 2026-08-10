@@ -1,0 +1,13 @@
+environment          = "dev"
+aws_region           = "us-east-1"
+vercel_team_slug     = "your-vercel-team-slug"
+vercel_project_name  = "meridian-migration-demo"
+vercel_oidc_issuer   = "https://oidc.vercel.com/your-vercel-team-slug"
+github_repo          = "your-github-username/meridian-migration-demo"
+
+# Generate with: openssl rand -base64 32
+auth_secret = "REPLACE_ME"
+
+# Leave blank for Pass 1. After Pass 1, set to the `vault_addr` output and
+# re-run `terraform apply` for Pass 2 (see README.md).
+vault_addr = ""
