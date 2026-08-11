@@ -7,3 +7,12 @@ node_modules
 .vercel
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# Terraform — state and real tfvars contain plaintext secrets (RDS master
+# password, Vault bootstrap token, auth_secret) once you actually run
+# `terraform apply`. Only terraform.tfvars.example should ever be tracked.
+infra/terraform/**/.terraform/
+infra/terraform/**/*.tfstate
+infra/terraform/**/*.tfstate.*
+infra/terraform/**/*.tfplan
+infra/terraform/**/terraform.tfvars
