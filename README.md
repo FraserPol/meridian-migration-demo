@@ -36,12 +36,15 @@ app/                    Next.js App Router
   api/legacy-inventory/  Mocked "existing AWS/EKS route inventory" (admin-only, curl-able)
   api/chat/              Streaming AI SDK route backing the Migration Copilot
 lib/
-  auth.ts               Session cookie signing/verification (jose + bcryptjs)
+  session.ts            Session cookie signing/verification (jose)
+  password.ts           Password hashing (bcryptjs) — split from session.ts, see its comment
   vault.ts              OIDC → Vault → dynamic DB credential resolution (+ local fallback)
   db/                   Drizzle ORM schema + lazy connection resolution
   quotes.ts             Deterministic mock quote generator
-  legacy-inventory.ts   Mocked legacy route/component inventory
-  ai/                   Migration Copilot system prompt, tools, deterministic planner
+  legacy-inventory.ts   Mocked legacy route/component inventory, cached with "use cache"
+  ai/                   Migration Copilot: agent.ts (ToolLoopAgent), system prompt, tools,
+                         deterministic planner
+proxy.ts                 Auth gating for /dashboard, /admin — Next.js 16's middleware.ts rename
 infra/terraform/         AWS + HCP Vault + Vercel infrastructure (see its own README)
 .github/workflows/ci.yml GitHub Actions: lint, typecheck, migration dry-run, build
 ```
@@ -108,28 +111,46 @@ Ask it things like:
 It always calls `getLegacyRouteInventory` before discussing a route,
 `recommendStrategyForRoute` before proposing a strategy, and
 `generateMigrationConfig` before showing any code — the strategy logic and
-generated `next.config.ts` / `middleware.ts` / `nginx.conf` snippets are
+generated `next.config.ts` / `proxy.ts` / `nginx.conf` snippets are
 plain deterministic TypeScript (`lib/ai/migration-planner.ts`), not
 model-generated text. The model's job is orchestration and explanation,
 not writing infrastructure config from scratch — see the comment at the
 top of that file for the reasoning.
 
-Model calls route through AI Gateway with provider-level failover ordering
-and per-request cost tagging (`app/api/chat/route.ts`) — if the primary
-provider serving Claude degrades, the Gateway routes to the next one in
-`order` with no code change.
+The agent itself is defined once as a `ToolLoopAgent` (`lib/ai/agent.ts`,
+AI SDK 6+) rather than inlined into the route handler — the model,
+instructions, tools, and stop condition live in one place, and
+`app/api/chat/route.ts` just calls `createAgentUIStreamResponse`. Model
+calls route through AI Gateway with provider-level failover ordering and
+per-request cost tagging (set in `lib/ai/agent.ts`'s `prepareCall`) — if
+the primary provider serving Claude degrades, the Gateway routes to the
+next one in `order` with no code change.
 
 ## Known limitations (what I'd flag before anyone relies on this)
 
-- **AI Gateway's cross-model fallback (`models: [...]`) isn't available in
-  `@ai-sdk/gateway@1.0.41`**, the version that actually resolved at build
-  time — only `order`/`only` for providers serving the *same* model. I
-  found this the hard way: `tsc` failed on the `models` field I'd
-  initially written based on Vercel's docs, checked the installed
-  package's `.d.ts` directly, and rewrote `app/api/chat/route.ts` to use
-  `order: ["bedrock", "anthropic"]` (provider failover for Claude
-  specifically) instead. Worth re-checking once a newer `@ai-sdk/gateway`
-  is published if true cross-model fallback matters for your use case.
+- **Cache Components (`next.config.ts`'s `cacheComponents: true`) is
+  enabled but only fully adopted on one code path.** Every authenticated
+  page reads the session cookie and does a live, per-user DB read — there
+  is no static shell to serve a signed-out visitor, so those segments
+  opt out of instant-navigation validation with `export const instant =
+  false` (the officially documented incremental-adoption pattern) rather
+  than being forced into a Suspense-per-layout rewrite of a working auth
+  flow. The one genuinely cacheable read — the legacy route inventory the
+  Migration Copilot advises on (`lib/legacy-inventory.ts`) — uses `"use
+  cache"` + `cacheLife("max")` for real, since in production that's a
+  CMDB export that changes on a change-management cadence, not per
+  request. `/login` needed no changes: it was already a static shell.
+- **`ai`/`@ai-sdk/*` were upgraded to the current majors** (`ai@7`,
+  `@ai-sdk/react@4`, `@ai-sdk/gateway@4`) specifically to adopt
+  `ToolLoopAgent` + `createAgentUIStreamResponse` (`lib/ai/agent.ts`),
+  which the take-home brief names directly. This also resolved an earlier
+  limitation noted here: AI Gateway's cross-model fallback (`models:
+  [...]`) wasn't in the `@ai-sdk/gateway@1.0.41` this project originally
+  pinned — it's present in `@ai-sdk/gateway@4.0.47`, confirmed by
+  checking the installed package's `.d.ts` directly rather than trusting
+  docs prose. `order: ["bedrock", "anthropic"]` (same-model provider
+  failover) is still what's used, since that's the actual scenario being
+  modeled — `models` is there if cross-model fallback is ever needed.
 - **Terraform was hand-reviewed, not applied or `validate`d** — the build
   environment had no `terraform` binary or cloud credentials. See
   `infra/terraform/README.md` for specifics on what to double-check.
