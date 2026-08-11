@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequestCookie, SESSION_COOKIE } from "@/lib/session";
 
+// Next.js 16 renamed the `middleware.ts` convention to `proxy.ts` to
+// clarify this file's role as a network-boundary/routing layer. It now
+// always runs on the Node.js runtime (no more Edge runtime option),
+// which is why lib/session.ts's Edge-safe/Node-only split (jose here,
+// bcryptjs kept out) is no longer strictly required for this file to
+// build — it's kept anyway since it's still good separation of concerns
+// and costs nothing.
 export const config = {
   matcher: ["/dashboard/:path*", "/admin/:path*"],
 };
 
-export default async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = await getSessionFromRequestCookie(token);
 

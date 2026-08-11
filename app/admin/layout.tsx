@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 import { getSession, destroySession } from "@/lib/session";
 
+// Reads the session cookie to gate the admin area — request-time by
+// design. See next.config.ts.
+export const instant = false;
+
 async function signOutAction() {
   "use server";
   await destroySession();

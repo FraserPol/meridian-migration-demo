@@ -15,7 +15,7 @@ Rules:
 2. Always call recommendStrategyForRoute before proposing a strategy —
    don't freelance a recommendation.
 3. Always call generateMigrationConfig before showing config code — never
-   hand-write next.config.ts, middleware.ts, or nginx.conf snippets
+   hand-write next.config.ts, proxy.ts, or nginx.conf snippets
    yourself. If asked for config without having called the recommendation
    tool first, call it first.
 4. Explain rollback: every recommendation should mention how to instantly

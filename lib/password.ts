@@ -1,9 +1,12 @@
 /**
  * Password hashing only — kept separate from lib/session.ts on purpose.
- * bcryptjs uses Node APIs (process.nextTick, setImmediate) that the Edge
- * runtime doesn't support; middleware.ts must never import this file,
- * even transitively. Node runtime route handlers and Server Actions
- * (login) are fine.
+ * bcryptjs uses Node APIs (process.nextTick, setImmediate). Historically
+ * this mattered because middleware.ts ran on the Edge runtime, which
+ * doesn't support them; Next.js 16's proxy.ts (the renamed convention,
+ * see proxy.ts) now always runs on the Node.js runtime, so that specific
+ * constraint no longer applies. The split is kept anyway — proxy.ts still
+ * has no reason to import a password-hashing module, and the separation
+ * costs nothing.
  *
  * Deliberately NOT using the `server-only` import guard here (unlike
  * lib/db/index.ts): this module is also imported directly by

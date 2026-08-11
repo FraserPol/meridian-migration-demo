@@ -7,6 +7,10 @@ import { AddTickerForm } from "./add-ticker-form";
 import { RemoveTickerButton } from "./remove-ticker-button";
 import { RefreshQuotesButton } from "./refresh-quotes-button";
 
+// Reads the session cookie and live per-user watchlist + quote data —
+// request-time by design. See next.config.ts.
+export const instant = false;
+
 export default async function WatchlistPage() {
   const session = await getSession();
   const db = await getDb();

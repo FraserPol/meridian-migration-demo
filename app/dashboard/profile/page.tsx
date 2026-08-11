@@ -4,6 +4,10 @@ import { getDb } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
 import { ProfileForm } from "./profile-form";
 
+// Reads the session cookie and a live per-user DB read — request-time by
+// design. See next.config.ts.
+export const instant = false;
+
 export default async function ProfilePage() {
   const session = await getSession();
   const db = await getDb();

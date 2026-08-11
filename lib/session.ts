@@ -1,9 +1,9 @@
 /**
  * Session handling only — deliberately kept free of bcryptjs (see
- * lib/password.ts). middleware.ts runs on the Edge runtime, which doesn't
- * support the Node APIs bcryptjs needs; importing it transitively from
- * here would break middleware at deploy time even though middleware never
- * calls a password function. jose (used below) is Edge-compatible.
+ * lib/password.ts). See the comment on lib/password.ts for why that
+ * split no longer strictly matters as of Next.js 16's proxy.ts (which
+ * runs Node.js, not Edge) but is kept anyway. jose (used below) works in
+ * both runtimes regardless.
  */
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";

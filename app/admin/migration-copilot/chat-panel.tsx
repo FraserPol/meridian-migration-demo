@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import type { MigrationCopilotUIMessage } from "@/lib/ai/agent";
 
 const SUGGESTIONS = [
   "What should we migrate first?",
@@ -12,7 +13,10 @@ const SUGGESTIONS = [
 ];
 
 export function ChatPanel() {
-  const { messages, sendMessage, status } = useChat({
+  // Typed via MigrationCopilotUIMessage (inferred from the ToolLoopAgent
+  // in lib/ai/agent.ts) so each tool-* message part below is known at
+  // compile time instead of cast through `unknown`.
+  const { messages, sendMessage, status } = useChat<MigrationCopilotUIMessage>({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   });
   const [input, setInput] = useState("");

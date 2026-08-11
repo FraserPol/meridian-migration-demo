@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 
+// Reads the session cookie to decide where to redirect — inherently
+// request-time, not a candidate for a static shell. See next.config.ts.
+export const instant = false;
+
 export default async function HomePage() {
   const session = await getSession();
   if (!session) {

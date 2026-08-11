@@ -4,20 +4,20 @@ import { getSession } from "@/lib/session";
 import { getDb } from "@/lib/db";
 import { profiles, watchlistItems } from "@/lib/db/schema";
 
+// Reads the session cookie and does a live, per-user DB read — request-time
+// by design. See next.config.ts.
+export const instant = false;
+
 export default async function DashboardPage() {
   const session = await getSession();
   const db = await getDb();
 
-  const [profile] = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.userId, session!.userId))
-    .limit(1);
-
-  const items = await db
-    .select()
-    .from(watchlistItems)
-    .where(eq(watchlistItems.userId, session!.userId));
+  // Independent queries — run in parallel rather than sequentially
+  // awaited, so the page isn't waiting on two round trips back to back.
+  const [[profile], items] = await Promise.all([
+    db.select().from(profiles).where(eq(profiles.userId, session!.userId)).limit(1),
+    db.select().from(watchlistItems).where(eq(watchlistItems.userId, session!.userId)),
+  ]);
 
   return (
     <>

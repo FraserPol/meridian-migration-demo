@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { legacyRouteInventory } from "@/lib/legacy-inventory";
+import { getLegacyRouteInventory as readLegacyRouteInventory } from "@/lib/legacy-inventory";
 import { recommendMigrationStrategy, generateMigrationSnippet } from "./migration-planner";
 
 /**
@@ -18,7 +18,8 @@ export const getLegacyRouteInventory = tool({
     "call this before recommending anything — never guess at what's currently deployed.",
   inputSchema: z.object({}),
   execute: async () => {
-    return { routes: legacyRouteInventory };
+    const routes = await readLegacyRouteInventory();
+    return { routes };
   },
 });
 
@@ -35,7 +36,8 @@ export const recommendStrategyForRoute = tool({
     route: z.string().describe("The route path, e.g. /watchlist or /api/profile"),
   }),
   execute: async ({ route }) => {
-    const match = legacyRouteInventory.find((r) => r.route === route);
+    const routes = await readLegacyRouteInventory();
+    const match = routes.find((r) => r.route === route);
     if (!match) {
       return { error: `No route "${route}" found in the legacy inventory.` };
     }
@@ -49,7 +51,7 @@ export const recommendStrategyForRoute = tool({
  */
 export const generateMigrationConfig = tool({
   description:
-    "Generate the actual configuration snippets (next.config.ts, middleware.ts, or " +
+    "Generate the actual configuration snippets (next.config.ts, proxy.ts, or " +
     "nginx.conf) needed to execute a migration recommendation for a given route and " +
     "approach. Call recommendStrategyForRoute first to get the approach.",
   inputSchema: z.object({
@@ -57,7 +59,8 @@ export const generateMigrationConfig = tool({
     approach: z.enum(["keep-domain-on-legacy", "point-domain-to-vercel"]),
   }),
   execute: async ({ route, approach }) => {
-    const match = legacyRouteInventory.find((r) => r.route === route);
+    const routes = await readLegacyRouteInventory();
+    const match = routes.find((r) => r.route === route);
     if (!match) {
       return { error: `No route "${route}" found in the legacy inventory.` };
     }

@@ -18,6 +18,16 @@ const nextConfig: NextConfig = {
       fallback: [],
     };
   },
+  // Next.js 16 primitive named explicitly in the take-home brief. Every
+  // authenticated route in this app reads the session cookie (a genuinely
+  // request-time-dependent value — there is no static shell to serve a
+  // signed-out visitor), so those segments opt out of instant-navigation
+  // validation with `export const instant = false` rather than being
+  // forced into a Suspense-per-layout rewrite of the auth flow. The one
+  // segment that's genuinely cacheable — the legacy route inventory the
+  // Migration Copilot reads — adopts `"use cache"` for real. See
+  // lib/legacy-inventory.ts and README.md "Known limitations."
+  cacheComponents: true,
 };
 
 export default nextConfig;

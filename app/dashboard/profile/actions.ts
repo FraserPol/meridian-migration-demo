@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
 import { getSession } from "@/lib/session";

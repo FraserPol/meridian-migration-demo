@@ -1,3 +1,5 @@
+import { cacheLife, cacheTag } from "next/cache";
+
 /**
  * Mocked inventory of Meridian's existing AWS/EKS-hosted app that the
  * Migration Copilot advises on.
@@ -9,6 +11,15 @@
  * demo it's static data so the reviewer can run it without standing up a
  * second AWS service, while the Migration Copilot's tool-calling code path
  * is identical either way — see app/api/chat/route.ts.
+ *
+ * This is also the one genuinely cacheable read in the app — unlike the
+ * session-gated pages (see next.config.ts), nothing about this data is
+ * per-user or per-request. In production it would be a CMDB export that
+ * changes on a change-management cadence, not per request, so it's
+ * wrapped in "use cache" with a long cacheLife rather than refetched
+ * every tool call. Route Handlers can't put "use cache" on the exported
+ * GET/POST function itself, so both call sites (the tool below and
+ * app/api/legacy-inventory/route.ts) go through this cached helper.
  */
 export type LegacyRoute = {
   route: string;
@@ -20,7 +31,7 @@ export type LegacyRoute = {
   notes: string;
 };
 
-export const legacyRouteInventory: LegacyRoute[] = [
+const rawLegacyRouteInventory: LegacyRoute[] = [
   {
     route: "/watchlist",
     tier: "frontend",
@@ -76,3 +87,10 @@ export const legacyRouteInventory: LegacyRoute[] = [
     notes: "Stateless proxy, no session concerns. Easy win once profile/watchlist land.",
   },
 ];
+
+export async function getLegacyRouteInventory(): Promise<LegacyRoute[]> {
+  "use cache";
+  cacheLife("max");
+  cacheTag("legacy-route-inventory");
+  return rawLegacyRouteInventory;
+}

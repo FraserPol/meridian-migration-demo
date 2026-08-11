@@ -116,14 +116,14 @@ export default nextConfig;
 `,
     },
     {
-      filename: "middleware.ts (Global Config kill-switch)",
+      filename: "proxy.ts (Global Config kill-switch)",
       language: "ts",
       code: `import { NextRequest, NextResponse } from "next/server";
 import { get } from "@vercel/edge-config";
 
 export const config = { matcher: ["${route.route}"] };
 
-export default async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Flip "isNewVersionActive" off in Global Config to send ${route.route}
   // back to the legacy origin instantly — no redeploy, no ticket.
   const isNewVersionActive = await get<boolean>("isNewVersionActive_${slugify(route.route)}");
