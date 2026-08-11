@@ -13,9 +13,9 @@ variable "hvn_cidr" {
 }
 
 variable "vault_tier" {
-  description = "HCP Vault cluster tier. plus_small is the minimum tier that includes the database secrets engine and namespaces for a production-grade setup; dev_small is cheaper for pure demo purposes."
+  description = "HCP Vault cluster tier. plus_small is the minimum tier that includes the database secrets engine and namespaces for a production-grade setup; dev is the cheapest option for pure demo purposes."
   type        = string
-  default     = "dev_small"
+  default     = "dev"
 }
 
 variable "aws_vpc_id" {
