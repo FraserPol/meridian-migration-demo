@@ -18,7 +18,7 @@ let cachedDb: Db | null = null;
  * Next.js execution paths, before there's a request context to source an
  * OIDC token from. Every call re-checks the (cached, TTL-aware) credential.
  */
-export async function getDb(headers?: Headers): Promise<Db> {
+export async function getDb(headers?: Pick<Headers, "get">): Promise<Db> {
   const connectionString = await getDatabaseConnectionString(headers);
 
   if (cachedDb && cachedConnectionString === connectionString) {

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
 import { getSession } from "@/lib/session";
@@ -22,7 +23,7 @@ export async function saveProfile(
     return { error: "Name and investment goal are required." };
   }
 
-  const db = await getDb();
+  const db = await getDb(await headers());
   await db
     .insert(profiles)
     .values({ userId: session.userId, displayName, investmentGoal, riskTolerance })

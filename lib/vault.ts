@@ -57,7 +57,7 @@ function buildConnectionString(username: string, password: string): string {
  * works whether it's called during a build step or a request.
  * https://vercel.com/docs/oidc
  */
-function getVercelOidcToken(headers?: Headers): string {
+function getVercelOidcToken(headers?: Pick<Headers, "get">): string {
   const fromHeader = headers?.get("x-vercel-oidc-token");
   const fromEnv = process.env.VERCEL_OIDC_TOKEN;
   const token = fromHeader ?? fromEnv;
@@ -71,7 +71,10 @@ function getVercelOidcToken(headers?: Headers): string {
   return token;
 }
 
-async function loginToVaultWithOidc(vaultAddr: string, headers?: Headers): Promise<string> {
+async function loginToVaultWithOidc(
+  vaultAddr: string,
+  headers?: Pick<Headers, "get">,
+): Promise<string> {
   const jwt = getVercelOidcToken(headers);
   const role = process.env.VAULT_JWT_AUTH_ROLE ?? "vercel-app";
 
@@ -133,7 +136,7 @@ async function readDynamicDbCredentials(
  * Credentials are cached in-process for 80% of their lease duration so we
  * don't call out to Vault on every request, then refreshed automatically.
  */
-export async function getDatabaseConnectionString(headers?: Headers): Promise<string> {
+export async function getDatabaseConnectionString(headers?: Pick<Headers, "get">): Promise<string> {
   const staticUrl = process.env.DATABASE_URL;
   const vaultAddr = process.env.VAULT_ADDR;
 

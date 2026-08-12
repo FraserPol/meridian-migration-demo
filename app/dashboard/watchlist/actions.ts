@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { watchlistItems } from "@/lib/db/schema";
@@ -26,7 +27,7 @@ export async function addTicker(
 
   const [quote] = computeQuotes([ticker]);
 
-  const db = await getDb();
+  const db = await getDb(await headers());
   await db
     .insert(watchlistItems)
     .values({ userId: session.userId, ticker, addedAtPrice: String(quote.price) })
@@ -41,7 +42,7 @@ export async function removeTicker(formData: FormData): Promise<void> {
   if (!session) return;
 
   const itemId = String(formData.get("itemId") ?? "");
-  const db = await getDb();
+  const db = await getDb(await headers());
   await db
     .delete(watchlistItems)
     .where(and(eq(watchlistItems.id, itemId), eq(watchlistItems.userId, session.userId)));

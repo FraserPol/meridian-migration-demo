@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { getDb } from "@/lib/db";
@@ -10,7 +11,7 @@ export const instant = false;
 
 export default async function ProfilePage() {
   const session = await getSession();
-  const db = await getDb();
+  const db = await getDb(await headers());
 
   const [profile] = await db
     .select()

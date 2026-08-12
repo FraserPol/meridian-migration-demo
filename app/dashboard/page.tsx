@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { getDb } from "@/lib/db";
@@ -10,7 +11,7 @@ export const instant = false;
 
 export default async function DashboardPage() {
   const session = await getSession();
-  const db = await getDb();
+  const db = await getDb(await headers());
 
   // Independent queries — run in parallel rather than sequentially
   // awaited, so the page isn't waiting on two round trips back to back.
