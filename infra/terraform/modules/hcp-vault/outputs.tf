@@ -12,6 +12,16 @@ output "aws_peering_connection_id" {
   value       = hcp_aws_network_peering.main.provider_peering_id
 }
 
+output "hvn_self_link" {
+  description = "Self-link of the HVN — used by hcp_hvn_route in the root module (where it can depend on the peering accepter)."
+  value       = hcp_hvn.main.self_link
+}
+
+output "peering_self_link" {
+  description = "Self-link of the HCP network peering — used by hcp_hvn_route in the root module."
+  value       = hcp_aws_network_peering.main.self_link
+}
+
 output "bootstrap_admin_token" {
   description = "One-time admin token for configuring auth methods/secrets engines in modules/vault-config. Not for application use."
   value       = hcp_vault_cluster_admin_token.bootstrap.token

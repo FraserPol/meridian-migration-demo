@@ -29,13 +29,6 @@ resource "hcp_aws_network_peering" "main" {
   peer_vpc_region = var.aws_region
 }
 
-resource "hcp_hvn_route" "main" {
-  hvn_link         = hcp_hvn.main.self_link
-  hvn_route_id     = "meridian-${var.environment}-to-vpc"
-  destination_cidr = var.aws_vpc_cidr
-  target_link      = hcp_aws_network_peering.main.self_link
-}
-
 resource "hcp_vault_cluster" "main" {
   cluster_id      = "meridian-${var.environment}"
   hvn_id          = hcp_hvn.main.hvn_id

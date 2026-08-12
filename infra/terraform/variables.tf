@@ -54,6 +54,12 @@ variable "hcp_hvn_region" {
   default     = "us-east-1"
 }
 
+variable "hvn_cidr" {
+  description = "CIDR for the HCP HVN — must not overlap with vpc_cidr."
+  type        = string
+  default     = "172.25.16.0/20"
+}
+
 variable "vault_addr" {
   description = "HCP Vault cluster address. Required for the second `terraform apply` pass (see README.md) once modules/hcp-vault has created the cluster — leave blank on the first pass."
   type        = string

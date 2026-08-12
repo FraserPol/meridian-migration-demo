@@ -14,6 +14,7 @@ module "aws_network" {
 
   environment = var.environment
   vpc_cidr    = var.vpc_cidr
+  hvn_cidr    = var.hvn_cidr
 }
 
 module "aws_database" {
@@ -41,6 +42,7 @@ module "hcp_vault" {
 
   environment    = var.environment
   hcp_hvn_region = var.hcp_hvn_region
+  hvn_cidr       = var.hvn_cidr
   aws_vpc_id     = module.aws_network.vpc_id
   aws_vpc_cidr   = module.aws_network.vpc_cidr
   aws_account_id = data.aws_caller_identity.current.account_id
@@ -56,6 +58,27 @@ resource "aws_vpc_peering_connection_accepter" "hcp_vault" {
   tags = {
     Name = "meridian-${var.environment}-hcp-vault-peering"
   }
+}
+
+# Route on the HVN side directing traffic destined for the AWS VPC CIDR
+# through the peering connection. Placed here (not inside modules/hcp-vault)
+# so it can depend on aws_vpc_peering_connection_accepter — the peering must
+# be ACTIVE (accepted on the AWS side) before HCP will accept the route.
+resource "hcp_hvn_route" "main" {
+  hvn_link         = module.hcp_vault.hvn_self_link
+  hvn_route_id     = "meridian-${var.environment}-to-vpc"
+  destination_cidr = module.aws_network.vpc_cidr
+  target_link      = module.hcp_vault.peering_self_link
+
+  depends_on = [aws_vpc_peering_connection_accepter.hcp_vault]
+}
+
+# Route on the AWS side directing traffic destined for the HVN CIDR
+# through the accepted VPC peering connection.
+resource "aws_route" "hcp_vault" {
+  route_table_id            = module.aws_network.private_route_table_id
+  destination_cidr_block    = var.hvn_cidr
+  vpc_peering_connection_id = aws_vpc_peering_connection_accepter.hcp_vault.id
 }
 
 # --- Pass 2 only (requires VAULT_ADDR/VAULT_TOKEN — see README.md) ---

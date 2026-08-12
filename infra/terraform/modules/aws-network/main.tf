@@ -32,6 +32,22 @@ resource "aws_subnet" "private" {
   }
 }
 
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name        = "meridian-${var.environment}-private"
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "aws_route_table_association" "private" {
+  count          = length(aws_subnet.private)
+  subnet_id      = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private.id
+}
+
 resource "aws_db_subnet_group" "main" {
   name       = "meridian-${var.environment}"
   subnet_ids = aws_subnet.private[*].id
@@ -57,6 +73,14 @@ resource "aws_security_group" "rds" {
     to_port     = 5432
     protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr]
+  }
+
+  ingress {
+    description = "Postgres from HCP HVN (Vault database secrets engine)"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [var.hvn_cidr]
   }
 
   egress {
