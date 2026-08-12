@@ -11,7 +11,7 @@ folder). Read that first for the why; this README is the how.
 **Live demo:** _add your Vercel deployment URL here after `vercel deploy`_
 **Repo:** _add your public GitHub URL here after pushing_
 
-**Deploying this yourself?** Skip ahead to [`SETUP_INSTRUCTIONS.md`](./SETUP_INSTRUCTIONS.md) — explicit, copy-paste commands in order, from "push to GitHub" through to the full Terraform/Vault production setup.
+**Deploying this yourself?** Skip ahead to [`PRODUCTION_SETUP.md`](./meridian-migration-demo/PRODUCTION_SETUP.md) — explicit, copy-paste commands in order, from Terraform init through the full AWS RDS + HCP Vault production setup.
 
 ## Demo accounts
 
@@ -100,6 +100,18 @@ Both paths run the exact same application code above `lib/vault.ts` — the
 point of the abstraction is that nothing in `lib/db/index.ts` or any page
 needs to know which one is active.
 
+`lib/session.ts`'s session-signing secret follows the identical pattern,
+one level up: `AUTH_SECRET` set directly (local dev, or `SETUP_INSTRUCTIONS.md`'s
+quick path) vs. resolved from Vault's KV-v2 static-secrets mount when only
+`VAULT_ADDR` is set (`lib/vault.ts`'s `getAuthSecret()`) — the "application
+secrets and configuration secrets" half of the Vault requirement, as
+distinct from the dynamic DB credentials above. Every request/build that
+needs it (session creation, verification, and `proxy.ts`'s auth gate) has
+to thread the incoming request's headers through to `getAuthSecret()`,
+since that's how a Vercel Function receives its OIDC token at runtime
+(`x-vercel-oidc-token`, not the `VERCEL_OIDC_TOKEN` env var — that's
+build-time only).
+
 ## The Migration Copilot, briefly
 
 Ask it things like:
@@ -151,16 +163,25 @@ next one in `order` with no code change.
   docs prose. `order: ["bedrock", "anthropic"]` (same-model provider
   failover) is still what's used, since that's the actual scenario being
   modeled — `models` is there if cross-model fallback is ever needed.
-- **Terraform was hand-reviewed, not applied or `validate`d** — the build
-  environment had no `terraform` binary or cloud credentials. See
-  `infra/terraform/README.md` for specifics on what to double-check.
+- **Terraform has since been applied for real** against live AWS/HCP/Vercel
+  accounts (not just `validate`/`plan`), which surfaced several bugs hand
+  review alone missed — an output comparing a possibly-`null` value against
+  `""`, an OIDC audience/environment claim mismatch that would have made
+  Vault/AWS auth silently fail for every real deployment, and HCP Vault
+  Dedicated's requirement that every request carry an `X-Vault-Namespace:
+  admin` header (root is reserved for HashiCorp's platform operations).
+  All fixed; see `infra/terraform/README.md` and `PRODUCTION_SETUP.md`'s
+  Troubleshooting section for the specifics of each.
+- **Vercel Secure Compute is Enterprise-only.** The architecture in
+  `solution-architecture.md` calls for it to give the deployed app private
+  network access to Vault/RDS; on Hobby/Pro it's unavailable (`Contact
+  Sales`). `PRODUCTION_SETUP.md`'s Step 6 documents the demo-only
+  workaround (public endpoints + TLS/credential auth instead of network
+  isolation) and the actual production recommendation.
 - **The legacy route inventory is static mock data.** In production the
   Migration Copilot's first tool call would hit a real internal endpoint;
   the tool-calling code path is identical either way, but the data itself
   doesn't reflect a real EKS deployment.
-- **Secure Compute's VPC peering isn't Terraform-automated** — it's a
-  manual acceptance step in the Vercel dashboard today (see
-  `infra/terraform/README.md`).
 - **All three demo accounts share one password.** Fine for a public
   take-home repo with no real data behind it; would never fly for an
   actual Meridian deployment.
