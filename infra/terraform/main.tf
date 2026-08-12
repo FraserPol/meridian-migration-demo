@@ -12,9 +12,10 @@ data "aws_caller_identity" "current" {}
 module "aws_network" {
   source = "./modules/aws-network"
 
-  environment = var.environment
-  vpc_cidr    = var.vpc_cidr
-  hvn_cidr    = var.hvn_cidr
+  environment             = var.environment
+  vpc_cidr                = var.vpc_cidr
+  hvn_cidr                = var.hvn_cidr
+  allow_public_rds_access = var.rds_publicly_accessible
 }
 
 module "aws_database" {
@@ -26,15 +27,17 @@ module "aws_database" {
   db_master_username    = var.db_master_username
   db_subnet_group_name  = module.aws_network.db_subnet_group_name
   rds_security_group_id = module.aws_network.rds_security_group_id
+  publicly_accessible   = var.rds_publicly_accessible
 }
 
 module "aws_oidc_trust" {
   source = "./modules/aws-oidc-trust"
 
-  environment         = var.environment
-  vercel_oidc_issuer  = var.vercel_oidc_issuer
-  vercel_team_slug    = var.vercel_team_slug
-  vercel_project_name = var.vercel_project_name
+  environment                   = var.environment
+  vercel_oidc_issuer            = var.vercel_oidc_issuer
+  vercel_team_slug              = var.vercel_team_slug
+  vercel_project_name           = var.vercel_project_name
+  vercel_deployment_environment = var.vercel_deployment_environment
 }
 
 module "hcp_vault" {
@@ -87,10 +90,11 @@ resource "aws_route" "hcp_vault" {
 module "vault_config" {
   source = "./modules/vault-config"
 
-  environment         = var.environment
-  vercel_oidc_issuer  = var.vercel_oidc_issuer
-  vercel_team_slug    = var.vercel_team_slug
-  vercel_project_name = var.vercel_project_name
+  environment                   = var.environment
+  vercel_oidc_issuer            = var.vercel_oidc_issuer
+  vercel_team_slug              = var.vercel_team_slug
+  vercel_project_name           = var.vercel_project_name
+  vercel_deployment_environment = var.vercel_deployment_environment
 
   rds_endpoint        = module.aws_database.endpoint
   rds_port            = module.aws_database.port

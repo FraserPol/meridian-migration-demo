@@ -6,6 +6,12 @@
 # entirely by Vercel OIDC Federation (AI Gateway auth, Vault auth) — see
 # solution-architecture.md Section 3. There is nothing static to rotate
 # here by design.
+#
+# target = ["production"] only, deliberately: this demo provisions a single
+# RDS/Vault backend, not a separate preview-safe one, and
+# modules/vault-config's JWT role only trusts Vercel's environment:production
+# claim (see var.vercel_deployment_environment) — preview deployments get no
+# Vault/RDS env vars at all rather than silently sharing production access.
 
 resource "vercel_project" "app" {
   name      = var.vercel_project_name
@@ -21,42 +27,42 @@ resource "vercel_project_environment_variable" "vault_addr" {
   project_id = vercel_project.app.id
   key        = "VAULT_ADDR"
   value      = var.vault_addr
-  target     = ["production", "preview"]
+  target     = ["production"]
 }
 
 resource "vercel_project_environment_variable" "vault_jwt_role" {
   project_id = vercel_project.app.id
   key        = "VAULT_JWT_AUTH_ROLE"
   value      = var.vault_jwt_role_name
-  target     = ["production", "preview"]
+  target     = ["production"]
 }
 
 resource "vercel_project_environment_variable" "vault_db_role" {
   project_id = vercel_project.app.id
   key        = "VAULT_DB_ROLE"
   value      = var.vault_db_role_name
-  target     = ["production", "preview"]
+  target     = ["production"]
 }
 
 resource "vercel_project_environment_variable" "pghost" {
   project_id = vercel_project.app.id
   key        = "PGHOST"
   value      = var.rds_endpoint
-  target     = ["production", "preview"]
+  target     = ["production"]
 }
 
 resource "vercel_project_environment_variable" "pgport" {
   project_id = vercel_project.app.id
   key        = "PGPORT"
   value      = tostring(var.rds_port)
-  target     = ["production", "preview"]
+  target     = ["production"]
 }
 
 resource "vercel_project_environment_variable" "pgdatabase" {
   project_id = vercel_project.app.id
   key        = "PGDATABASE"
   value      = var.rds_db_name
-  target     = ["production", "preview"]
+  target     = ["production"]
 }
 
 # Secure Compute itself (VPC peering acceptance between Vercel's network

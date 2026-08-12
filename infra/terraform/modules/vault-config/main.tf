@@ -41,16 +41,23 @@ resource "vault_jwt_auth_backend_role" "vercel_app" {
   role_name      = var.jwt_role_name
   token_policies = [vault_policy.app.name]
 
-  role_type       = "jwt"
-  user_claim      = "sub"
-  bound_audiences = [var.vercel_oidc_issuer]
+  role_type  = "jwt"
+  user_claim = "sub"
+  # Vercel's OIDC token aud claim defaults to https://vercel.com/<team-slug>,
+  # NOT the oidc.vercel.com issuer URL used for oidc_discovery_url/bound_issuer
+  # above — the issuer and audience are two different Vercel domains. See
+  # https://vercel.com/docs/oidc/aws.
+  bound_audiences = ["https://vercel.com/${var.vercel_team_slug}"]
 
   # Scopes which Vercel deployments can authenticate as this role — only
   # this project, in this environment. A preview deployment for a
   # different project (or a different Vercel team) cannot obtain these
-  # credentials even with a validly-signed OIDC token.
+  # credentials even with a validly-signed OIDC token. var.vercel_deployment_environment
+  # is Vercel's own environment claim (production/preview/development) —
+  # not var.environment, which is only an internal Vault-path naming
+  # convention and never appears in a real token.
   bound_claims = {
-    sub = "owner:${var.vercel_team_slug}:project:${var.vercel_project_name}:environment:${var.environment}"
+    sub = "owner:${var.vercel_team_slug}:project:${var.vercel_project_name}:environment:${var.vercel_deployment_environment}"
   }
   bound_claims_type = "glob"
 

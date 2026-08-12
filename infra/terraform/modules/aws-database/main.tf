@@ -27,10 +27,15 @@ resource "aws_db_instance" "main" {
   vpc_security_group_ids = [var.rds_security_group_id]
 
   multi_az                = var.environment == "production"
-  publicly_accessible     = false
+  publicly_accessible     = var.publicly_accessible
   deletion_protection     = var.environment == "production"
   skip_final_snapshot     = var.environment != "production"
   backup_retention_period = var.environment == "production" ? 7 : 1
+  # false (the aws provider default) would otherwise queue changes like
+  # publicly_accessible for the next weekly maintenance window instead of
+  # applying them now. Fine for a non-prod demo instance; a real production
+  # database should keep the default off-hours-scheduled behavior.
+  apply_immediately = var.environment != "production"
 
   tags = {
     Name        = "meridian-${var.environment}"

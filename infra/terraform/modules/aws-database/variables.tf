@@ -21,3 +21,9 @@ variable "db_subnet_group_name" {
 variable "rds_security_group_id" {
   type = string
 }
+
+variable "publicly_accessible" {
+  description = "DEMO-ONLY escape hatch — see aws-network's allow_public_rds_access. Defaults to false; not for production."
+  type        = bool
+  default     = false
+}

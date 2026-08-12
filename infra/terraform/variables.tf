@@ -43,6 +43,12 @@ variable "vercel_team_slug" {
   type        = string
 }
 
+variable "vercel_deployment_environment" {
+  description = "Vercel's own OIDC 'environment' claim value — one of production, preview, or development (see https://vercel.com/docs/oidc/aws), used by the AWS IAM and Vault JWT trust conditions to scope which Vercel deployments can authenticate. Distinct from var.environment, which is only an internal AWS/HCP/Vault resource-naming convention (e.g. \"dev\") and never appears in a real Vercel OIDC token. Defaults to \"production\" since this demo provisions a single RDS/Vault backend and preview deployments should not share production database access."
+  type        = string
+  default     = "production"
+}
+
 variable "vercel_project_name" {
   type    = string
   default = "meridian-migration-demo"
@@ -66,7 +72,13 @@ variable "hvn_cidr" {
 }
 
 variable "vault_public_endpoint" {
-  description = "Whether the HCP Vault cluster exposes a public endpoint. Defaults to false — Vault is reached only via the HVN peering + Vercel Secure Compute. Set to true temporarily only if Step 5's terraform apply can't reach the private endpoint (no network path into the peered VPC), then set back to false and re-apply once module.vault_config has been configured."
+  description = "Whether the HCP Vault cluster exposes a public endpoint. Defaults to false — the intended production path is Vault reached only via the HVN peering + Vercel Secure Compute. Set to true as a DEMO-ONLY workaround when Secure Compute isn't available (it's an Enterprise-only feature) — both terraform apply itself and the deployed app then need the public endpoint to reach Vault at all, so unlike a one-time bootstrap flip this needs to stay true for as long as the demo runs without Secure Compute. Not for production — see PRODUCTION_SETUP.md."
+  type        = bool
+  default     = false
+}
+
+variable "rds_publicly_accessible" {
+  description = "DEMO-ONLY escape hatch: makes RDS publicly reachable (public IP + security group open to 0.0.0.0/0 on 5432) so the deployed Vercel app can reach it without Vercel Secure Compute, which is Enterprise-only. Defaults to false. Never enable this for a real production deployment — use Secure Compute or Vercel Static IPs instead (see PRODUCTION_SETUP.md's 'Known limitations' note)."
   type        = bool
   default     = false
 }

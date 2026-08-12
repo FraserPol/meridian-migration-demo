@@ -16,9 +16,16 @@ data "tls_certificate" "vercel_oidc" {
   url = var.vercel_oidc_issuer
 }
 
+# Vercel's OIDC token's aud claim defaults to https://vercel.com/<team-slug>,
+# NOT the oidc.vercel.com issuer URL above — the issuer and audience are two
+# different Vercel domains. See https://vercel.com/docs/oidc/aws.
+locals {
+  vercel_oidc_audience = "https://vercel.com/${var.vercel_team_slug}"
+}
+
 resource "aws_iam_openid_connect_provider" "vercel" {
   url             = var.vercel_oidc_issuer
-  client_id_list  = [var.vercel_oidc_issuer] # Vercel's aud claim matches its own issuer URL
+  client_id_list  = [local.vercel_oidc_audience]
   thumbprint_list = [data.tls_certificate.vercel_oidc.certificates[0].sha1_fingerprint]
 
   tags = {
@@ -43,13 +50,13 @@ data "aws_iam_policy_document" "vercel_trust" {
     condition {
       test     = "StringEquals"
       variable = "${replace(var.vercel_oidc_issuer, "https://", "")}:aud"
-      values   = [var.vercel_oidc_issuer]
+      values   = [local.vercel_oidc_audience]
     }
 
     condition {
       test     = "StringLike"
       variable = "${replace(var.vercel_oidc_issuer, "https://", "")}:sub"
-      values   = ["owner:${var.vercel_team_slug}:project:${var.vercel_project_name}:environment:${var.environment}"]
+      values   = ["owner:${var.vercel_team_slug}:project:${var.vercel_project_name}:environment:${var.vercel_deployment_environment}"]
     }
   }
 }

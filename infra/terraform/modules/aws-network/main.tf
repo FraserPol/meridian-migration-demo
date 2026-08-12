@@ -48,6 +48,32 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
 }
 
+# Unconditional and inert on its own (no route points at it unless
+# allow_public_rds_access is set) — exists because AWS refuses
+# publicly_accessible = true on aws_db_instance unless the VPC has *some*
+# internet gateway attached, independent of whether any subnet actually
+# routes to it.
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name        = "meridian-${var.environment}"
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# DEMO-ONLY: see variable "allow_public_rds_access" — routes the (otherwise
+# private) route table to the internet gateway so the publicly accessible
+# RDS instance is actually reachable, not just permitted by the AWS API
+# check above. Never present in a production deployment.
+resource "aws_route" "public_rds_egress" {
+  count                  = var.allow_public_rds_access ? 1 : 0
+  route_table_id         = aws_route_table.private.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.main.id
+}
+
 resource "aws_db_subnet_group" "main" {
   name       = "meridian-${var.environment}"
   subnet_ids = aws_subnet.private[*].id
@@ -81,6 +107,20 @@ resource "aws_security_group" "rds" {
     to_port     = 5432
     protocol    = "tcp"
     cidr_blocks = [var.hvn_cidr]
+  }
+
+  # DEMO-ONLY: see variable "allow_public_rds_access" — this exists only
+  # because Secure Compute (the real fix) is Enterprise-only. Never enable
+  # this for a production deployment.
+  dynamic "ingress" {
+    for_each = var.allow_public_rds_access ? [1] : []
+    content {
+      description = "DEMO-ONLY public Postgres access (allow_public_rds_access), not for production"
+      from_port   = 5432
+      to_port     = 5432
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
   }
 
   egress {

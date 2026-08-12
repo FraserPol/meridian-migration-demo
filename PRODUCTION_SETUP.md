@@ -87,14 +87,18 @@ vault_addr = "<paste the same VAULT_ADDR value here>"
 ```
 
 **Network access required for Step 5:** `vault_addr` resolves to the
-cluster's *private* endpoint (`hcp_vault_cluster` is created with
+cluster's *private* endpoint by default (`hcp_vault_cluster` is created with
 `public_endpoint = false`) — reachable only through the HVN↔VPC peering
 Step 3 created, never the public internet. The machine running `terraform
 apply` in Step 5 must have a network path into that peering (e.g. an EC2
 instance/bastion inside the VPC, or a VPN into it) or every `vault_*`
 resource in `module.vault_config` will fail with `context deadline
-exceeded` while the provider tries to reach it. Running `terraform apply`
-from an arbitrary laptop on the open internet will not work.
+exceeded` while the provider tries to reach it.
+
+**No such network path? See "Working around Secure Compute" below** — the
+same Enterprise-only limitation that blocks Step 6 also blocks this, and
+both are worked around with the one `vault_public_endpoint` flag. Set it
+before continuing to Step 5.
 
 ## Step 5: Second apply — configures Vault, creates the Vercel project
 
@@ -104,10 +108,58 @@ terraform apply
 
 Type `yes` when prompted.
 
-## Step 6: Accept Secure Compute peering (manual, one click)
+## Step 6: Give the deployed app a path to Vault + RDS
 
-1. Go to your Vercel project → **Settings** → **Secure Compute**.
-2. Accept the pending peering connection from the AWS VPC Terraform just created.
+The architecture in `solution-architecture.md` calls for **Vercel Secure
+Compute** here: accept a VPC peering connection (Vercel project → Settings
+→ Secure Compute) so the deployed app reaches Vault and RDS privately,
+never over the public internet. **Secure Compute is an Enterprise-only
+feature** — on Hobby/Pro it's not available at all (`Contact Sales`), so
+this demo can't use it.
+
+### Working around Secure Compute (demo-only)
+
+Two settings substitute for Secure Compute so the app can still reach both
+services, purely over the public internet with TLS + credential auth
+instead of network-level isolation:
+
+1. **Vault**: already handled if you followed Step 4's note —
+   `vault_public_endpoint = true` in `terraform.tfvars` makes `vault_addr`
+   (and therefore the app's `VAULT_ADDR` env var, set by
+   `module.vercel_project`) resolve to Vault's public endpoint. Keep this
+   `true` for as long as the demo runs without Secure Compute — the app
+   needs it on every request, not just during setup.
+2. **RDS**: set in `terraform.tfvars`:
+   ```
+   rds_publicly_accessible = true
+   ```
+   then re-apply:
+   ```bash
+   terraform apply -target=module.aws_network -target=module.aws_database
+   ```
+   This makes `aws_db_instance.main` publicly reachable and opens the RDS
+   security group to inbound Postgres from `0.0.0.0/0` — Vercel Functions
+   don't have a fixed outbound IP on Hobby/Pro, so there's no way to scope
+   this tighter without a paid add-on (see below). The RDS master password
+   is a strong random 32-character value never exposed as a Terraform
+   output, and the app itself only ever uses Vault's short-lived dynamic
+   credentials (5 min TTL) — but the database port itself is now exposed to
+   the internet. Treat this as demo-only.
+
+### Production recommendation
+
+Don't run either workaround in a real deployment. Instead:
+
+- **Vault + RDS private access**: use Vercel Secure Compute (requires
+  Enterprise) — the original design in `solution-architecture.md`.
+- **If Enterprise isn't an option**: [Vercel Static IPs](https://vercel.com/docs/networking/static-ips)
+  (a paid Pro/Enterprise add-on, ~$100/mo/project as of this writing) gives
+  the deployment a small fixed egress IP range, so the RDS security group
+  can allowlist that range instead of `0.0.0.0/0` — meaningfully better than
+  the open-internet workaround above, though still not equivalent to true
+  network isolation.
+- Either way, set `vault_public_endpoint = false` and
+  `rds_publicly_accessible = false` and re-apply once a private path exists.
 
 ## Step 7: Load data into RDS (one time)
 
@@ -158,5 +210,10 @@ HCP Vault on every request — the exact pattern described in
 - **`Could not create project ... install the GitHub integration first` in
   Step 5:** see the GitHub App install steps under Step 2 — this has to be
   done once via the Vercel dashboard, Terraform can't do it for you.
+- **App deploys fine but every DB read/write times out or hangs:** if
+  Secure Compute isn't set up (see Step 6), the deployed app has no network
+  path to RDS unless `rds_publicly_accessible = true` has been applied —
+  check `terraform state show module.aws_database.aws_db_instance.main |
+  grep publicly_accessible`.
 - **Anything else:** see "Known limitations" in `README.md` and
   `infra/terraform/README.md`.
