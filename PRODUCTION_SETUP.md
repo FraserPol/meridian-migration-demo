@@ -178,13 +178,33 @@ npm run db:seed
 
 ## Step 8: Switch the app to Vault credentials
 
+The Vercel project was created by `module.vercel_project` in Terraform, not
+by `vercel link`/`vercel new` — so this checkout has no local
+`.vercel/project.json` telling the CLI which project it maps to yet.
+Link it once, from `meridian-migration-demo/` (this directory):
+
+```bash
+vercel link --yes --project meridian-migration-demo --scope fraserpols-projects
+```
+
+Use your own `vercel_project_name`/`vercel_team_slug` from `terraform.tfvars`
+if they differ. Without this, `vercel env rm` (and Step 9's `vercel deploy`)
+fail with `Your codebase isn't linked to a project on Vercel`.
+
 ```bash
 vercel env rm DATABASE_URL production
 ```
 
-Confirm `yes`. The `vercel_project` Terraform module already set `VAULT_ADDR`,
-`VAULT_JWT_AUTH_ROLE`, `VAULT_DB_ROLE`, `PGHOST`, `PGPORT`, and `PGDATABASE`
-— with `DATABASE_URL` gone, `lib/vault.ts` takes the Vault path automatically.
+Confirm `yes`. **If this errors with `Environment Variable was not found`,
+that's expected, not a problem** — `module.vercel_project` never sets
+`DATABASE_URL` in the first place, so this only removes something if you
+previously ran `SETUP_INSTRUCTIONS.md`'s quick Neon-based setup against the
+same project and are now graduating off it. Either way, the outcome is the
+same: `DATABASE_URL` is unset for production. The `vercel_project` Terraform
+module already set `VAULT_ADDR`, `VAULT_JWT_AUTH_ROLE`, `VAULT_DB_ROLE`,
+`PGHOST`, `PGPORT`, and `PGDATABASE` — with `DATABASE_URL` gone,
+`lib/vault.ts`'s `getDatabaseConnectionString()` takes the Vault path
+automatically (see its fallback logic in `lib/vault.ts`).
 
 ## Step 9: Redeploy
 
@@ -215,5 +235,9 @@ HCP Vault on every request — the exact pattern described in
   path to RDS unless `rds_publicly_accessible = true` has been applied —
   check `terraform state show module.aws_database.aws_db_instance.main |
   grep publicly_accessible`.
+- **`Your codebase isn't linked to a project on Vercel` on `vercel env rm`
+  or `vercel deploy` (Steps 8–9):** see the `vercel link` command under
+  Step 8 — Terraform created the project via the API, so this checkout was
+  never linked locally the way `vercel link`/`vercel new` would do it.
 - **Anything else:** see "Known limitations" in `README.md` and
   `infra/terraform/README.md`.
