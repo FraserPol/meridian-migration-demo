@@ -3,10 +3,11 @@ name: CI
 # This workflow is what solution-architecture.md means by "GitHub Actions
 # replaces Jenkins for CI checks." It only runs verification (lint,
 # typecheck, build, a migration dry-run against a throwaway Postgres
-# service container) — it does NOT deploy anything. Deployment is owned by
-# Vercel's native Git integration (Preview Deployments on every push,
-# Rolling Releases on promotion to production), which is deliberately kept
-# out of this workflow so the two responsibilities stay separated.
+# service container, and the Migration Copilot eval) — it does NOT deploy
+# anything. Deployment is owned by Vercel's native Git integration
+# (Preview Deployments on every push, Rolling Releases on promotion to
+# production), which is deliberately kept out of this workflow so the two
+# responsibilities stay separated.
 
 on:
   push:
@@ -58,3 +59,13 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Migration Copilot eval (tool-call order)
+        # Calls the real model via AI Gateway on 5 fixed prompts, asserting
+        # inventory -> strategy -> config ordering — see
+        # lib/ai/migration-copilot.eval.test.ts. Skips gracefully (not a
+        # failure) if AI_GATEWAY_API_KEY isn't set as a repo secret, so
+        # this never breaks CI for a fork without billing configured.
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+        run: npm run test:eval

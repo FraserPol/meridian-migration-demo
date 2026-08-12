@@ -255,9 +255,11 @@ individually, and the full production Terraform path was later applied
 against live AWS/HCP/Vercel accounts and debugged end to end (see Known
 Limitations and `infra/terraform/README.md`) rather than left as
 untested hand-review. AI behavior in the Migration Copilot was validated
-by: manual review of the three-tool call sequence against the system
-prompt's rules, confirming the recommendation/config-generation logic is
-deterministic TypeScript rather than model output (see
-`lib/ai/migration-planner.ts`), and exercising the chat UI's suggested
-prompts against the mocked inventory to confirm consistent tool-call
-ordering.
+by: confirming the recommendation/config-generation logic is deterministic
+TypeScript rather than model output (see `lib/ai/migration-planner.ts`),
+and `lib/ai/migration-copilot.eval.test.ts` — 5 fixed prompts run against
+the real model on every CI run, asserting the tool-call order (inventory
+before strategy, strategy before config) the system prompt requires,
+rather than a one-time manual check (`npm run test:eval`; needs
+`AI_GATEWAY_API_KEY` set as a repo secret — skips gracefully, not a CI
+failure, if it isn't).
