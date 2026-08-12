@@ -71,6 +71,18 @@ function getVercelOidcToken(headers?: Pick<Headers, "get">): string {
   return token;
 }
 
+// HCP Vault Dedicated reserves the root namespace for HashiCorp's own
+// platform operations (not customer-accessible) — every resource this app
+// talks to actually lives under the "admin" namespace Terraform creates it
+// in (see infra/terraform/versions.tf's provider "vault" block). Every
+// Vault API call below must carry this header, or Vault resolves the
+// request against the (empty) root namespace and reports the role/path as
+// not found even though it exists.
+function vaultNamespaceHeaders(): Record<string, string> {
+  const namespace = process.env.VAULT_NAMESPACE;
+  return namespace ? { "X-Vault-Namespace": namespace } : {};
+}
+
 async function loginToVaultWithOidc(
   vaultAddr: string,
   headers?: Pick<Headers, "get">,
@@ -80,7 +92,7 @@ async function loginToVaultWithOidc(
 
   const res = await fetch(`${vaultAddr}/v1/auth/jwt/login`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...vaultNamespaceHeaders() },
     body: JSON.stringify({ role, jwt }),
   });
 
@@ -103,7 +115,7 @@ async function readDynamicDbCredentials(
   const dbRole = process.env.VAULT_DB_ROLE ?? "meridian-app-role";
 
   const res = await fetch(`${vaultAddr}/v1/database/creds/${dbRole}`, {
-    headers: { "X-Vault-Token": vaultToken },
+    headers: { "X-Vault-Token": vaultToken, ...vaultNamespaceHeaders() },
   });
 
   if (!res.ok) {

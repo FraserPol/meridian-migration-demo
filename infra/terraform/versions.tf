@@ -54,8 +54,17 @@ provider "hcp" {
 # two-phase: apply hcp-vault first, then apply everything else with
 # VAULT_ADDR / VAULT_TOKEN env vars pointed at the new cluster. See
 # infra/terraform/README.md for the exact command sequence.
+#
+# namespace is required, not optional: HCP Vault Dedicated reserves the
+# root namespace for HashiCorp's platform operations (not customer
+# accessible) and every resource this config creates actually lives under
+# "admin/" — this was previously implicit only because VAULT_TOKEN happens
+# to be homed in that namespace by default, which the app's own runtime
+# Vault calls have no equivalent of (see lib/vault.ts's X-Vault-Namespace
+# header, var.vault_namespace).
 provider "vault" {
-  address = var.vault_addr
+  address   = var.vault_addr
+  namespace = var.vault_namespace
 }
 
 # Configure via env var: VERCEL_API_TOKEN

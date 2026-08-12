@@ -112,6 +112,7 @@ module "vercel_project" {
   github_repo         = var.github_repo
 
   vault_addr          = module.hcp_vault.vault_addr
+  vault_namespace     = var.vault_namespace
   vault_jwt_role_name = module.vault_config.jwt_role_name
   vault_db_role_name  = module.vault_config.db_role_name
 

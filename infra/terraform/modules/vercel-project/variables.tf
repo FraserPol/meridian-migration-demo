@@ -11,6 +11,11 @@ variable "vault_addr" {
   type = string
 }
 
+variable "vault_namespace" {
+  description = "Vault namespace the app must send as X-Vault-Namespace on every request — see infra/terraform/versions.tf's provider \"vault\" block for why this isn't optional on HCP Vault Dedicated."
+  type        = string
+}
+
 variable "vault_jwt_role_name" {
   type = string
 }

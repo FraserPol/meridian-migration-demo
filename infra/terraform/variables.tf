@@ -77,6 +77,12 @@ variable "vault_public_endpoint" {
   default     = false
 }
 
+variable "vault_namespace" {
+  description = "Vault namespace all resources are created in and the app authenticates against. HCP Vault Dedicated reserves the root namespace for HashiCorp's own platform operations — it is not customer-accessible — and provisions \"admin\" as the top-level namespace customers operate in instead. See https://developer.hashicorp.com/hcp/docs/vault/get-started/manage-namespaces."
+  type        = string
+  default     = "admin"
+}
+
 variable "rds_publicly_accessible" {
   description = "DEMO-ONLY escape hatch: makes RDS publicly reachable (public IP + security group open to 0.0.0.0/0 on 5432) so the deployed Vercel app can reach it without Vercel Secure Compute, which is Enterprise-only. Defaults to false. Never enable this for a real production deployment — use Secure Compute or Vercel Static IPs instead (see PRODUCTION_SETUP.md's 'Known limitations' note)."
   type        = bool

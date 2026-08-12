@@ -30,6 +30,13 @@ resource "vercel_project_environment_variable" "vault_addr" {
   target     = ["production"]
 }
 
+resource "vercel_project_environment_variable" "vault_namespace" {
+  project_id = vercel_project.app.id
+  key        = "VAULT_NAMESPACE"
+  value      = var.vault_namespace
+  target     = ["production"]
+}
+
 resource "vercel_project_environment_variable" "vault_jwt_role" {
   project_id = vercel_project.app.id
   key        = "VAULT_JWT_AUTH_ROLE"
