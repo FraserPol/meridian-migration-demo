@@ -1,11 +1,14 @@
-import { createAgentUIStreamResponse, type UIMessage } from "ai";
+import { convertToModelMessages, createUIMessageStreamResponse, type UIMessage } from "ai";
+import { start } from "workflow/api";
 import { getSession } from "@/lib/session";
-import { migrationCopilotAgent } from "@/lib/ai/agent";
+import { migrationCopilotWorkflow } from "@/workflows/migration-copilot/workflow";
 
-// Fluid Compute: this route can sit idle across multiple tool-calling
-// steps while waiting on model/tool round-trips. maxDuration bounds a
-// single invocation; Fluid Compute means we're billed for active CPU
-// during that window, not idle wall-clock time waiting on the model.
+// Fluid Compute: this route itself returns almost immediately after
+// start()ing the workflow and piping back its stream — the actual
+// tool-calling loop now runs as a durable workflow run (see
+// workflows/migration-copilot/workflow.ts), not inside this Function
+// invocation. maxDuration still bounds how long this route will keep
+// piping the response stream to the client.
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
@@ -18,15 +21,13 @@ export async function POST(req: Request) {
   }
 
   const { messages }: { messages: UIMessage[] } = await req.json();
+  const modelMessages = await convertToModelMessages(messages);
 
-  // The agent itself (model, instructions, tools, stop condition) is
-  // defined once in lib/ai/agent.ts and reused here. Per-request data —
-  // just the admin's email, for AI Gateway spend attribution — is passed
-  // through `options` and merged into providerOptions.gateway by the
-  // agent's own `prepareCall` hook.
-  return createAgentUIStreamResponse({
-    agent: migrationCopilotAgent,
-    uiMessages: messages,
-    options: { userEmail: session.email },
-  });
+  // Per-request data (which admin is asking, for AI Gateway spend
+  // attribution) is passed as a plain workflow argument — DurableAgent
+  // has no callOptionsSchema/prepareCall equivalent, so it's set directly
+  // in providerOptions.gateway inside the workflow function.
+  const run = await start(migrationCopilotWorkflow, [modelMessages, session.email]);
+
+  return createUIMessageStreamResponse({ stream: run.readable });
 }

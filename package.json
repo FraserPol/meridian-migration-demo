@@ -14,9 +14,11 @@
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
-    "ai": "^7.0.59",
-    "@ai-sdk/react": "^4.0.62",
     "@ai-sdk/gateway": "^4.0.47",
+    "@ai-sdk/react": "^4.0.62",
+    "@workflow/ai": "^4.2.0",
+    "@workflow/next": "^4.1.6",
+    "ai": "^6.0.252",
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.36.4",
     "jose": "^5.9.6",
@@ -24,6 +26,7 @@
     "postgres": "^3.4.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "workflow": "^4.8.2",
     "zod": "^3.24.1"
   },
   "devDependencies": {

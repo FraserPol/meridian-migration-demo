@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withWorkflow } from "workflow/next";
 
 /**
  * Demo note (Step 2 of the SA take-home): in a real incremental migration,
@@ -30,4 +31,6 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
 };
 
-export default nextConfig;
+// Compiles workflows/**'s "use workflow"/"use step" directives — see
+// workflows/migration-copilot/workflow.ts.
+export default withWorkflow(nextConfig);

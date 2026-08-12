@@ -44,8 +44,9 @@ lib/
   db/                   Drizzle ORM schema + lazy connection resolution
   quotes.ts             Deterministic mock quote generator
   legacy-inventory.ts   Mocked legacy route/component inventory, cached with "use cache"
-  ai/                   Migration Copilot: agent.ts (ToolLoopAgent), system prompt, tools,
-                         deterministic planner
+  ai/                   Migration Copilot: system prompt, tools (durable steps), deterministic planner
+workflows/
+  migration-copilot/    The Migration Copilot as a durable Vercel Workflow (DurableAgent)
 proxy.ts                 Auth gating for /dashboard, /admin — Next.js 16's middleware.ts rename
 infra/terraform/         AWS + HCP Vault + Vercel infrastructure (see its own README)
 .github/workflows/ci.yml GitHub Actions: lint, typecheck, migration dry-run, build
@@ -136,14 +137,28 @@ model-generated text. The model's job is orchestration and explanation,
 not writing infrastructure config from scratch — see the comment at the
 top of that file for the reasoning.
 
-The agent itself is defined once as a `ToolLoopAgent` (`lib/ai/agent.ts`,
-AI SDK 6+) rather than inlined into the route handler — the model,
-instructions, tools, and stop condition live in one place, and
-`app/api/chat/route.ts` just calls `createAgentUIStreamResponse`. Model
-calls route through AI Gateway with provider-level failover ordering and
-per-request cost tagging (set in `lib/ai/agent.ts`'s `prepareCall`) — if
-the primary provider serving Claude degrades, the Gateway routes to the
-next one in `order` with no code change.
+The agent itself is defined once, as a `DurableAgent`
+(`workflows/migration-copilot/workflow.ts`) rather than inlined into the
+route handler — the model, instructions, tools, and stop condition live
+in one place. `app/api/chat/route.ts` just `start()`s the workflow and
+pipes its stream back to the client. Model calls route through AI Gateway
+with provider-level failover ordering and per-request cost tagging (set
+directly in the workflow's `providerOptions.gateway`) — if the primary
+provider serving Claude degrades, the Gateway routes to the next one in
+`order` with no code change.
+
+**Why a Workflow, not a plain Route Handler:** the whole tool-calling loop
+(inventory → strategy → config) used to run inside one Function
+invocation with nothing persisted server-side — a crash or redeploy
+mid-loop lost everything. Each tool's `execute` (`lib/ai/tools.ts`) is now
+a durable Vercel Workflow step (`"use step"`), with automatic retries and
+a result that's persisted and replayed rather than re-executed if the run
+is interrupted. `DurableAgent` (from `@workflow/ai`, not the plain
+`ToolLoopAgent`) is what makes this actually work — every tool call it
+makes happens directly from the `"use workflow"` function's own call
+stack, not from inside another step, which matters because a step calling
+another step collapses into one non-durable unit (`"use step"` becomes a
+no-op when it's not called directly from a workflow function).
 
 ## Known limitations (what I'd flag before anyone relies on this)
 
@@ -166,17 +181,23 @@ next one in `order` with no code change.
   cache"` + `cacheLife("max")` for real, since in production that's a
   CMDB export that changes on a change-management cadence, not per
   request. `/login` needed no changes: it was already a static shell.
-- **`ai`/`@ai-sdk/*` were upgraded to the current majors** (`ai@7`,
-  `@ai-sdk/react@4`, `@ai-sdk/gateway@4`) specifically to adopt
-  `ToolLoopAgent` + `createAgentUIStreamResponse` (`lib/ai/agent.ts`),
-  which the take-home brief names directly. This also resolved an earlier
-  limitation noted here: AI Gateway's cross-model fallback (`models:
-  [...]`) wasn't in the `@ai-sdk/gateway@1.0.41` this project originally
-  pinned — it's present in `@ai-sdk/gateway@4.0.47`, confirmed by
-  checking the installed package's `.d.ts` directly rather than trusting
-  docs prose. `order: ["bedrock", "anthropic"]` (same-model provider
-  failover) is still what's used, since that's the actual scenario being
-  modeled — `models` is there if cross-model fallback is ever needed.
+- **`ai` is pinned to `6.0.252`, not the `7.x` this project ran earlier.**
+  An earlier iteration upgraded to `ai@7` specifically for `ToolLoopAgent`
+  + `createAgentUIStreamResponse`. Adopting Vercel Workflow's `DurableAgent`
+  for real durability (see above) forced a downgrade back to `ai@6` —
+  `@workflow/ai`'s published versions all peer-depend on `ai@^6`
+  (verified against every version on npm, including the higher-numbered
+  ones, which are marked deprecated: "published in error... this is a 4.x
+  patch mislabeled as a major"). Confirmed `ToolLoopAgent` and
+  `createAgentUIStreamResponse` both still exist in `ai@6` before
+  downgrading (checked the installed `.d.ts` directly), though neither is
+  used anymore now that `DurableAgent` replaces `ToolLoopAgent` entirely.
+  `@ai-sdk/react`/`@ai-sdk/gateway` stayed at their existing `4.x` — neither
+  declares `ai` as a peer dependency, and both worked unchanged. AI
+  Gateway's cross-model fallback (`models: [...]`) and same-model
+  provider failover (`order: [...]`) are both still available at this
+  version; `order: ["bedrock", "anthropic"]` is what's used, since that's
+  the actual scenario being modeled.
 - **Terraform has since been applied for real** against live AWS/HCP/Vercel
   accounts (not just `validate`/`plan`), which surfaced several bugs hand
   review alone missed — an output comparing a possibly-`null` value against
