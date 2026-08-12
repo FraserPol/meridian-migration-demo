@@ -41,6 +41,22 @@ Open `terraform.tfvars` and set:
 
 Leave `vault_addr` blank for now.
 
+**Before Step 5:** install the Vercel GitHub App, or `module.vercel_project`
+will fail with `Could not create project ... you need to install the GitHub
+integration first`:
+
+1. Go to [github.com/apps/vercel](https://github.com/apps/vercel) and click
+   **Install** (or **Configure** if it's already installed somewhere).
+2. When GitHub asks which account/org to install into, pick the account that
+   owns `github_repo` — not a different org.
+3. Under repository access, choose **All repositories**, or **Only select
+   repositories** and check the one from `github_repo`.
+4. Save. Confirm it under Vercel dashboard → your team → **Settings →
+   Integrations** (or **Git**) — it should show GitHub as connected.
+
+This is a one-time setup per Vercel team/GitHub account, not per project —
+skip it if already done for this pair.
+
 ## Step 3: Init and first apply — network, database, Vault cluster
 
 ```bash
@@ -69,6 +85,16 @@ Open `terraform.tfvars` and set:
 ```
 vault_addr = "<paste the same VAULT_ADDR value here>"
 ```
+
+**Network access required for Step 5:** `vault_addr` resolves to the
+cluster's *private* endpoint (`hcp_vault_cluster` is created with
+`public_endpoint = false`) — reachable only through the HVN↔VPC peering
+Step 3 created, never the public internet. The machine running `terraform
+apply` in Step 5 must have a network path into that peering (e.g. an EC2
+instance/bastion inside the VPC, or a VPN into it) or every `vault_*`
+resource in `module.vault_config` will fail with `context deadline
+exceeded` while the provider tries to reach it. Running `terraform apply`
+from an arbitrary laptop on the open internet will not work.
 
 ## Step 5: Second apply — configures Vault, creates the Vercel project
 
@@ -129,5 +155,8 @@ HCP Vault on every request — the exact pattern described in
 - **HVN route stays in FAILED state:** the VPC peering accepter must be ACTIVE
   before HCP will accept the route — confirm the peering is accepted in the AWS
   console and re-run the Step 3 apply.
+- **`Could not create project ... install the GitHub integration first` in
+  Step 5:** see the GitHub App install steps under Step 2 — this has to be
+  done once via the Vercel dashboard, Terraform can't do it for you.
 - **Anything else:** see "Known limitations" in `README.md` and
   `infra/terraform/README.md`.

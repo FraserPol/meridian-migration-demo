@@ -18,6 +18,12 @@ variable "vault_tier" {
   default     = "dev"
 }
 
+variable "public_endpoint" {
+  description = "Whether the cluster exposes a public endpoint. Defaults to false — reached only via the HVN peering + Vercel Secure Compute, never the public internet."
+  type        = bool
+  default     = false
+}
+
 variable "aws_vpc_id" {
   type = string
 }

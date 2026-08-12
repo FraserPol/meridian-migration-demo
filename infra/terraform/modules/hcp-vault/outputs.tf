@@ -1,6 +1,6 @@
 output "vault_addr" {
   description = "Feed this into VAULT_ADDR (root variables.tf) for the second terraform apply pass, and into the app's VAULT_ADDR env var."
-  value       = hcp_vault_cluster.main.vault_public_endpoint_url != "" ? hcp_vault_cluster.main.vault_public_endpoint_url : hcp_vault_cluster.main.vault_private_endpoint_url
+  value       = hcp_vault_cluster.main.public_endpoint ? hcp_vault_cluster.main.vault_public_endpoint_url : hcp_vault_cluster.main.vault_private_endpoint_url
 }
 
 output "cluster_id" {

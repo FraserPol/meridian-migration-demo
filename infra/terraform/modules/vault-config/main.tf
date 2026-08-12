@@ -54,7 +54,7 @@ resource "vault_jwt_auth_backend_role" "vercel_app" {
   }
   bound_claims_type = "glob"
 
-  token_ttl     = 300  # 5 minutes — matches the short-lived-by-design pattern
+  token_ttl     = 300 # 5 minutes — matches the short-lived-by-design pattern
   token_max_ttl = 900
 }
 
@@ -80,11 +80,11 @@ resource "vault_database_secret_backend_connection" "rds" {
 }
 
 resource "vault_database_secret_backend_role" "app" {
-  backend             = vault_mount.db.path
-  name                = var.db_role_name
-  db_name             = vault_database_secret_backend_connection.rds.name
-  default_ttl         = 300  # 5 minutes — see lib/vault.ts credential caching
-  max_ttl             = 3600
+  backend     = vault_mount.db.path
+  name        = var.db_role_name
+  db_name     = vault_database_secret_backend_connection.rds.name
+  default_ttl = 300 # 5 minutes — see lib/vault.ts credential caching
+  max_ttl     = 3600
   creation_statements = [
     "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';",
     "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\";",

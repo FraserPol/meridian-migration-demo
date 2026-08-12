@@ -42,7 +42,9 @@ terraform apply \
   -target=module.aws_database \
   -target=module.aws_oidc_trust \
   -target=module.hcp_vault \
-  -target=aws_vpc_peering_connection_accepter.hcp_vault
+  -target=aws_vpc_peering_connection_accepter.hcp_vault \
+  -target=hcp_hvn_route.main \
+  -target=aws_route.hcp_vault
 
 # Grab the cluster address and bootstrap token from Pass 1's outputs
 terraform output vault_addr

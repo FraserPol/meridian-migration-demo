@@ -65,6 +65,12 @@ variable "hvn_cidr" {
   default     = "172.25.16.0/20"
 }
 
+variable "vault_public_endpoint" {
+  description = "Whether the HCP Vault cluster exposes a public endpoint. Defaults to false — Vault is reached only via the HVN peering + Vercel Secure Compute. Set to true temporarily only if Step 5's terraform apply can't reach the private endpoint (no network path into the peered VPC), then set back to false and re-apply once module.vault_config has been configured."
+  type        = bool
+  default     = false
+}
+
 variable "vault_addr" {
   description = "HCP Vault cluster address. Required for the second `terraform apply` pass (see README.md) once modules/hcp-vault has created the cluster — leave blank on the first pass."
   type        = string

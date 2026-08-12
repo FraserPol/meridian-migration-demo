@@ -33,7 +33,7 @@ resource "hcp_vault_cluster" "main" {
   cluster_id      = "meridian-${var.environment}"
   hvn_id          = hcp_hvn.main.hvn_id
   tier            = var.vault_tier
-  public_endpoint = false # reached only via the HVN peering + Vercel Secure Compute, never the public internet
+  public_endpoint = var.public_endpoint # see variables.tf — defaults false, reached only via the HVN peering + Vercel Secure Compute
 }
 
 resource "hcp_vault_cluster_admin_token" "bootstrap" {
