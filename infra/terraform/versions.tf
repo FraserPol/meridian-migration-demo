@@ -41,7 +41,12 @@ provider "aws" {
 }
 
 # Configure via env vars: HCP_CLIENT_ID / HCP_CLIENT_SECRET
-provider "hcp" {}
+# project_id pins all HCP resources to the meridian-demo project; without
+# this, the provider defaults to the oldest project in the org (a footgun
+# when multiple projects exist).
+provider "hcp" {
+  project_id = var.hcp_project_id
+}
 
 # Points at the cluster this same config creates (see modules/hcp-vault).
 # Terraform can't provider-configure from a resource it hasn't created yet

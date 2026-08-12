@@ -48,6 +48,11 @@ variable "vercel_project_name" {
   default = "meridian-migration-demo"
 }
 
+variable "hcp_project_id" {
+  description = "HCP project ID for the meridian-demo project. Find it in the HCP portal URL: portal.cloud.hashicorp.com/orgs/.../projects/<this-id>/..."
+  type        = string
+}
+
 variable "hcp_hvn_region" {
   description = "HCP HashiCorp Virtual Network region — should match aws_region for peering."
   type        = string
