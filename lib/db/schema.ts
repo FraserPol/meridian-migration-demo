@@ -5,6 +5,8 @@ import {
   timestamp,
   pgEnum,
   numeric,
+  integer,
+  jsonb,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
@@ -57,6 +59,34 @@ export const watchlistItems = pgTable(
   }),
 );
 
+// The Migration Copilot's audit trail — "eat your own dog food" on the
+// solution-architecture.md pitch that AI Gateway gives Finance/Compliance
+// a spend/trace record: every run gets a Postgres row recording who asked,
+// what tools ran (in what order), which provider actually served each
+// model call (visible proof of Gateway failover if/when it happens — see
+// order: ["bedrock", "anthropic"] in workflows/migration-copilot/workflow.ts),
+// token usage, and an estimated cost (see lib/ai/pricing.ts). Written by a
+// durable step at the end of the workflow run, not the route handler —
+// see persistCopilotRun in workflows/migration-copilot/workflow.ts.
+export type CopilotToolCallRecord = { name: string; input: unknown; output: unknown };
+export type CopilotProviderRecord = { provider: string; modelId: string };
+
+export const migrationCopilotRuns = pgTable("migration_copilot_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  adminEmail: text("admin_email").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Ordered array of { name, input, output } — one entry per tool call.
+  toolCalls: jsonb("tool_calls").$type<CopilotToolCallRecord[]>().notNull(),
+  // Ordered array of { provider, modelId } — one entry per model-call step.
+  providers: jsonb("providers").$type<CopilotProviderRecord[]>().notNull(),
+  inputTokens: integer("input_tokens").notNull(),
+  outputTokens: integer("output_tokens").notNull(),
+  totalTokens: integer("total_tokens").notNull(),
+  estimatedCostUsd: numeric("estimated_cost_usd", { precision: 10, scale: 6 }).notNull(),
+  finalResponseText: text("final_response_text").notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Profile = typeof profiles.$inferSelect;
 export type WatchlistItem = typeof watchlistItems.$inferSelect;
+export type MigrationCopilotRun = typeof migrationCopilotRuns.$inferSelect;

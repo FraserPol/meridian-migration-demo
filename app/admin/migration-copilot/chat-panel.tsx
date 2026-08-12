@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import type { MigrationCopilotUIMessage } from "@/workflows/migration-copilot/workflow";
+import type { CopilotProviderRecord, MigrationCopilotRun } from "@/lib/db/schema";
 
 const SUGGESTIONS = [
   "What should we migrate first?",
@@ -12,11 +13,77 @@ const SUGGESTIONS = [
   "What's the rollback plan for /admin/reports?",
 ];
 
+function formatCost(usd: string): string {
+  const n = Number(usd);
+  return n < 0.01 ? `<$0.01` : `$${n.toFixed(2)}`;
+}
+
+function providerSummary(providers: CopilotProviderRecord[]): string {
+  const unique = [...new Set(providers.map((p) => p.provider))];
+  return unique.join(" → ");
+}
+
+/**
+ * Reads workflows/migration-copilot/workflow.ts's audit trail
+ * (migration_copilot_runs, via app/api/migration-copilot/runs) so
+ * cost/tokens/provider-per-run are something to click through live,
+ * not just a claim about a dashboard nobody in the room can see.
+ */
+function RunHistory({ trigger }: { trigger: number }) {
+  const [runs, setRuns] = useState<MigrationCopilotRun[]>([]);
+
+  // Re-fetches whenever `trigger` (messages.length from the parent)
+  // changes — which happens naturally on every turn, so this needs no
+  // separate "did a response just finish" state derived in another effect.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/migration-copilot/runs")
+      .then((res) => (res.ok ? res.json() : { runs: [] }))
+      .then((data: { runs: MigrationCopilotRun[] }) => {
+        if (!cancelled) setRuns(data.runs);
+      })
+      .catch(() => {
+        // Best-effort — the chat itself already succeeded if we're here.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trigger]);
+
+  if (runs.length === 0) return null;
+
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h2 style={{ fontSize: 14, marginBottom: 8 }}>Recent runs (audit trail)</h2>
+      <table style={{ width: "100%", fontSize: 13 }}>
+        <thead>
+          <tr style={{ textAlign: "left", color: "var(--muted)" }}>
+            <th>When</th>
+            <th>Provider</th>
+            <th>Tokens</th>
+            <th>Est. cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((run) => (
+            <tr key={run.id}>
+              <td>{new Date(run.createdAt).toLocaleTimeString()}</td>
+              <td>{providerSummary(run.providers)}</td>
+              <td>{run.totalTokens.toLocaleString()}</td>
+              <td>{formatCost(run.estimatedCostUsd)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function ChatPanel() {
   // Typed via MigrationCopilotUIMessage (inferred from the DurableAgent in
   // workflows/migration-copilot/workflow.ts) so each tool-* message part
   // below is known at compile time instead of cast through `unknown`.
-  const { messages, sendMessage, status } = useChat<MigrationCopilotUIMessage>({
+  const { messages, sendMessage, status, error } = useChat<MigrationCopilotUIMessage>({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   });
   const [input, setInput] = useState("");
@@ -70,6 +137,13 @@ export function ChatPanel() {
           </div>
         ))}
         {isBusy && <div className="chat-message assistant">Thinking…</div>}
+        {status === "error" && (
+          <div className="chat-message assistant" style={{ color: "var(--danger, #c0392b)" }}>
+            Something went wrong generating a response
+            {error?.message ? `: ${error.message}` : "."} Try asking again — see the server
+            logs (or <code>npx workflow inspect runs</code>) for the underlying error.
+          </div>
+        )}
       </div>
 
       <form
@@ -89,6 +163,8 @@ export function ChatPanel() {
           Send
         </button>
       </form>
+
+      <RunHistory trigger={messages.length} />
     </div>
   );
 }

@@ -26,8 +26,12 @@ export async function POST(req: Request) {
   // Per-request data (which admin is asking, for AI Gateway spend
   // attribution) is passed as a plain workflow argument — DurableAgent
   // has no callOptionsSchema/prepareCall equivalent, so it's set directly
-  // in providerOptions.gateway inside the workflow function.
-  const run = await start(migrationCopilotWorkflow, [modelMessages, session.email]);
+  // in providerOptions.gateway inside the workflow function. The OIDC
+  // token is passed through too, since the workflow's audit-trail
+  // persistence step has no way to read the original request — see
+  // workflows/migration-copilot/workflow.ts.
+  const oidcToken = req.headers.get("x-vercel-oidc-token");
+  const run = await start(migrationCopilotWorkflow, [modelMessages, session.email, oidcToken]);
 
   return createUIMessageStreamResponse({ stream: run.readable });
 }
