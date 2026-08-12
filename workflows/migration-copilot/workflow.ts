@@ -8,6 +8,15 @@ import { estimateCostUsd } from "@/lib/ai/pricing";
 import { getDb } from "@/lib/db";
 import { migrationCopilotRuns } from "@/lib/db/schema";
 
+const FAILOVER_SIMULATION_NOTE =
+  "Demo note (failover-explanation toggle is on for this message): after " +
+  "answering the question normally, add one short closing sentence " +
+  "explaining that this response was served through Vercel AI Gateway " +
+  "with automatic provider failover configured (order: bedrock, then " +
+  "anthropic for this model) — if the primary provider becomes " +
+  "unavailable, requests route to the next one automatically, with no " +
+  "code change and no re-issued API keys.";
+
 /**
  * The Migration Copilot, as a durable Vercel Workflow instead of a plain
  * Route Handler Function (see app/api/chat/route.ts's start() call).
@@ -34,17 +43,29 @@ import { migrationCopilotRuns } from "@/lib/db/schema";
  * request that triggered it — Headers is a serializable workflow
  * argument type, but here it's simpler to pass just the one token string
  * the persistence step's getDb() call actually needs.
+ *
+ * `simulateFailover`, when true, does NOT force a real provider failure —
+ * there's no safe way to make only the "bedrock" leg of `order` fail
+ * without risking a hard 400 on the whole request (an invalid model or
+ * provider ID is a config error, not something order's runtime failover
+ * covers — see the caveat on migrationCopilotRuns.simulatedFailureRequested
+ * in lib/db/schema.ts). Instead it asks the model to narrate the real
+ * failover mechanism as part of its answer, so it's demoable without any
+ * risk of breaking the live request.
  */
 export async function migrationCopilotWorkflow(
   messages: ModelMessage[],
   userEmail: string,
   oidcToken: string | null,
+  simulateFailover: boolean,
 ) {
   "use workflow";
 
   const agent = new DurableAgent({
     model: "anthropic/claude-sonnet-4.5",
-    instructions: MIGRATION_COPILOT_SYSTEM_PROMPT,
+    instructions: simulateFailover
+      ? `${MIGRATION_COPILOT_SYSTEM_PROMPT}\n\n${FAILOVER_SIMULATION_NOTE}`
+      : MIGRATION_COPILOT_SYSTEM_PROMPT,
     tools: migrationCopilotTools,
   });
 
@@ -98,6 +119,7 @@ export async function migrationCopilotWorkflow(
     outputTokens,
     finalResponseText: result.steps.at(-1)?.text ?? "",
     oidcToken,
+    simulateFailover,
   });
 }
 
@@ -109,6 +131,7 @@ async function persistCopilotRun(record: {
   outputTokens: number;
   finalResponseText: string;
   oidcToken: string | null;
+  simulateFailover: boolean;
 }) {
   "use step";
 
@@ -138,6 +161,7 @@ async function persistCopilotRun(record: {
     totalTokens: record.inputTokens + record.outputTokens,
     estimatedCostUsd: estimatedCostUsd.toFixed(6),
     finalResponseText: record.finalResponseText,
+    simulatedFailureRequested: record.simulateFailover,
   });
 }
 

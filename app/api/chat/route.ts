@@ -20,7 +20,10 @@ export async function POST(req: Request) {
     return new Response("Forbidden", { status: 403 });
   }
 
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  const {
+    messages,
+    simulateFailover,
+  }: { messages: UIMessage[]; simulateFailover?: boolean } = await req.json();
   const modelMessages = await convertToModelMessages(messages);
 
   // Per-request data (which admin is asking, for AI Gateway spend
@@ -31,7 +34,12 @@ export async function POST(req: Request) {
   // persistence step has no way to read the original request — see
   // workflows/migration-copilot/workflow.ts.
   const oidcToken = req.headers.get("x-vercel-oidc-token");
-  const run = await start(migrationCopilotWorkflow, [modelMessages, session.email, oidcToken]);
+  const run = await start(migrationCopilotWorkflow, [
+    modelMessages,
+    session.email,
+    oidcToken,
+    simulateFailover ?? false,
+  ]);
 
   return createUIMessageStreamResponse({ stream: run.readable });
 }

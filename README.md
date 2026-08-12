@@ -160,6 +160,28 @@ stack, not from inside another step, which matters because a step calling
 another step collapses into one non-durable unit (`"use step"` becomes a
 no-op when it's not called directly from a workflow function).
 
+**Audit trail and cost, made visible, not just claimed.** Every run writes
+a row to `migration_copilot_runs` (`lib/db/schema.ts`) — who asked, every
+tool call in order, which provider actually served each model call
+(real proof of Gateway failover if it ever happens mid-run), token usage,
+and an estimated cost (`lib/ai/pricing.ts` — an estimate; Gateway's own
+dashboard is the source of truth for billed cost). `chat-panel.tsx` polls
+`app/api/migration-copilot/runs` after each turn and shows a compact
+recent-runs table, so "AI Gateway gives Finance/Compliance a spend/trace
+record" (`solution-architecture.md`) is something to click through live
+rather than a claim about a dashboard nobody in the room can see.
+
+There's also an admin-only toggle ("Explain provider failover in the
+response") for narrating the `order` failover mechanism live. It's
+explicitly illustrative, not a real triggered fault — there's no safe way
+to make only the `bedrock` leg of `order` fail without risking a hard 400
+on the whole request (an invalid model/provider combination is a config
+error Gateway rejects outright, not something `order`'s runtime failover
+covers), so it asks the model to narrate the real mechanism in its answer
+instead of gambling a live demo moment on unverified fault injection. Runs
+made with it on are badged (🔧) in the audit table above; the `providers`
+column there is always the real serving provider regardless.
+
 ## Known limitations (what I'd flag before anyone relies on this)
 
 - **AI Gateway requires a payment method on file for the Vercel team**,

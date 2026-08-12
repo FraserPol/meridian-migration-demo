@@ -68,7 +68,17 @@ function RunHistory({ trigger }: { trigger: number }) {
           {runs.map((run) => (
             <tr key={run.id}>
               <td>{new Date(run.createdAt).toLocaleTimeString()}</td>
-              <td>{providerSummary(run.providers)}</td>
+              <td>
+                {providerSummary(run.providers)}
+                {run.simulatedFailureRequested && (
+                  <span
+                    title="Failover-explanation toggle was on for this run — see chat-panel.tsx. Doesn't force a real provider failure; the provider column above is still the real serving provider."
+                    style={{ marginLeft: 6, opacity: 0.7 }}
+                  >
+                    🔧
+                  </span>
+                )}
+              </td>
               <td>{run.totalTokens.toLocaleString()}</td>
               <td>{formatCost(run.estimatedCostUsd)}</td>
             </tr>
@@ -87,12 +97,13 @@ export function ChatPanel() {
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   });
   const [input, setInput] = useState("");
+  const [simulateFailover, setSimulateFailover] = useState(false);
 
   const isBusy = status === "submitted" || status === "streaming";
 
   function submit(text: string) {
     if (!text.trim() || isBusy) return;
-    sendMessage({ text });
+    sendMessage({ text }, { body: { simulateFailover } });
     setInput("");
   }
 
@@ -146,12 +157,24 @@ export function ChatPanel() {
         )}
       </div>
 
+      <label
+        style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, marginTop: 12 }}
+        title="Doesn't force a real Bedrock outage — there's no safe way to fault-inject just one leg of AI Gateway's order config without risking a hard error on the whole request. Asks the model to narrate the real failover mechanism instead, and badges this run in the audit trail below."
+      >
+        <input
+          type="checkbox"
+          checked={simulateFailover}
+          onChange={(e) => setSimulateFailover(e.target.checked)}
+        />
+        Explain provider failover in the response (illustrative — see tooltip)
+      </label>
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
           submit(input);
         }}
-        style={{ display: "flex", gap: 10, marginTop: 16 }}
+        style={{ display: "flex", gap: 10, marginTop: 8 }}
       >
         <input
           value={input}

@@ -1,0 +1,1 @@
+ALTER TABLE "migration_copilot_runs" ADD COLUMN "simulated_failure_requested" boolean DEFAULT false NOT NULL;

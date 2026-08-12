@@ -7,6 +7,7 @@ import {
   numeric,
   integer,
   jsonb,
+  boolean,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
@@ -84,6 +85,14 @@ export const migrationCopilotRuns = pgTable("migration_copilot_runs", {
   totalTokens: integer("total_tokens").notNull(),
   estimatedCostUsd: numeric("estimated_cost_usd", { precision: 10, scale: 6 }).notNull(),
   finalResponseText: text("final_response_text").notNull(),
+  // Whether the demo's failover-explanation toggle was on for this run —
+  // see workflows/migration-copilot/workflow.ts. Doesn't force a real
+  // provider failure (not safely fault-injectable from application code
+  // — an invalid model/provider combo returns a hard 400, not a clean
+  // fallback), it's a marker so the UI can badge the run and the actual
+  // `providers` column above stays the honest record of what really
+  // served it.
+  simulatedFailureRequested: boolean("simulated_failure_requested").notNull().default(false),
 });
 
 export type User = typeof users.$inferSelect;
