@@ -13,8 +13,9 @@ import { RefreshQuotesButton } from "./refresh-quotes-button";
 export const instant = false;
 
 export default async function WatchlistPage() {
-  const session = await getSession();
-  const db = await getDb(await headers());
+  const hdrs = await headers();
+  const session = await getSession(hdrs);
+  const db = await getDb(hdrs);
 
   const items = await db
     .select()

@@ -20,13 +20,14 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
     return { error: "Enter both an email and a password." };
   }
 
-  const db = await getDb(await headers());
+  const hdrs = await headers();
+  const db = await getDb(hdrs);
   const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
 
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     return { error: "Invalid email or password." };
   }
 
-  await createSession({ userId: user.id, email: user.email, role: user.role });
+  await createSession({ userId: user.id, email: user.email, role: user.role }, hdrs);
   redirect(user.role === "admin" ? "/admin/migration-copilot" : "/dashboard");
 }

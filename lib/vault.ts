@@ -177,3 +177,64 @@ export async function getDatabaseConnectionString(headers?: Pick<Headers, "get">
 
   return creds.connectionString;
 }
+
+let cachedAuthSecret: string | null = null;
+
+/**
+ * Resolves the session-signing secret: the AUTH_SECRET env var locally, or
+ * Vault's KV-v2 static app-config secret in production (see
+ * infra/terraform/modules/vault-config's vault_kv_secret_v2.app_config —
+ * deliberately never set as a static Vercel env var, see
+ * modules/vercel-project's header comment).
+ *
+ * Cached indefinitely once fetched — unlike the dynamic DB credentials
+ * above, a KV-v2 static secret has no lease/TTL to respect, so there's
+ * nothing to refresh.
+ */
+export async function getAuthSecret(headers?: Pick<Headers, "get">): Promise<string> {
+  const staticSecret = process.env.AUTH_SECRET;
+  if (staticSecret) {
+    return staticSecret;
+  }
+
+  const vaultAddr = process.env.VAULT_ADDR;
+  if (!vaultAddr) {
+    throw new Error(
+      "Neither AUTH_SECRET nor VAULT_ADDR is set. Set AUTH_SECRET for local " +
+        "development (see .env.example), or VAULT_ADDR + VAULT_KV_APP_CONFIG_PATH " +
+        "for the production Vault-backed path.",
+    );
+  }
+
+  if (cachedAuthSecret) {
+    return cachedAuthSecret;
+  }
+
+  const kvPath = process.env.VAULT_KV_APP_CONFIG_PATH;
+  if (!kvPath) {
+    throw new Error(
+      "VAULT_KV_APP_CONFIG_PATH is not set. When VAULT_ADDR is configured, this " +
+        "must point at Vault's KV-v2 data path for the app-config secret (see " +
+        "infra/terraform/modules/vault-config's kv_app_config_path output).",
+    );
+  }
+
+  const vaultToken = await loginToVaultWithOidc(vaultAddr, headers);
+
+  const res = await fetch(`${vaultAddr}/v1/${kvPath}`, {
+    headers: { "X-Vault-Token": vaultToken, ...vaultNamespaceHeaders() },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Vault KV app-config read failed: ${res.status} ${await res.text()}`);
+  }
+
+  const body = (await res.json()) as { data?: { data?: Record<string, string> } };
+  const secret = body.data?.data?.AUTH_SECRET;
+  if (!secret) {
+    throw new Error("Vault KV app-config secret is missing an AUTH_SECRET key");
+  }
+
+  cachedAuthSecret = secret;
+  return secret;
+}

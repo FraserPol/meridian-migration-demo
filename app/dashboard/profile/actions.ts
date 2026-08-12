@@ -12,7 +12,8 @@ export async function saveProfile(
   _prevState: ProfileState,
   formData: FormData,
 ): Promise<ProfileState> {
-  const session = await getSession();
+  const hdrs = await headers();
+  const session = await getSession(hdrs);
   if (!session) return { error: "Not signed in." };
 
   const displayName = String(formData.get("displayName") ?? "").trim();
@@ -23,7 +24,7 @@ export async function saveProfile(
     return { error: "Name and investment goal are required." };
   }
 
-  const db = await getDb(await headers());
+  const db = await getDb(hdrs);
   await db
     .insert(profiles)
     .values({ userId: session.userId, displayName, investmentGoal, riskTolerance })

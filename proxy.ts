@@ -14,7 +14,7 @@ export const config = {
 
 export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const session = await getSessionFromRequestCookie(token);
+  const session = await getSessionFromRequestCookie(token, request.headers);
 
   if (!session) {
     const loginUrl = new URL("/login", request.url);

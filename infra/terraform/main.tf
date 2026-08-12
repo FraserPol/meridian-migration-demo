@@ -111,10 +111,11 @@ module "vercel_project" {
   vercel_project_name = var.vercel_project_name
   github_repo         = var.github_repo
 
-  vault_addr          = module.hcp_vault.vault_addr
-  vault_namespace     = var.vault_namespace
-  vault_jwt_role_name = module.vault_config.jwt_role_name
-  vault_db_role_name  = module.vault_config.db_role_name
+  vault_addr               = module.hcp_vault.vault_addr
+  vault_namespace          = var.vault_namespace
+  vault_jwt_role_name      = module.vault_config.jwt_role_name
+  vault_db_role_name       = module.vault_config.db_role_name
+  vault_kv_app_config_path = module.vault_config.kv_app_config_path
 
   rds_endpoint = module.aws_database.endpoint
   rds_port     = module.aws_database.port

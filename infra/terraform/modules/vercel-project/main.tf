@@ -51,6 +51,13 @@ resource "vercel_project_environment_variable" "vault_db_role" {
   target     = ["production"]
 }
 
+resource "vercel_project_environment_variable" "vault_kv_app_config_path" {
+  project_id = vercel_project.app.id
+  key        = "VAULT_KV_APP_CONFIG_PATH"
+  value      = var.vault_kv_app_config_path
+  target     = ["production"]
+}
+
 resource "vercel_project_environment_variable" "pghost" {
   project_id = vercel_project.app.id
   key        = "PGHOST"

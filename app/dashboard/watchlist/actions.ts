@@ -14,7 +14,8 @@ export async function addTicker(
   _prevState: WatchlistState,
   formData: FormData,
 ): Promise<WatchlistState> {
-  const session = await getSession();
+  const hdrs = await headers();
+  const session = await getSession(hdrs);
   if (!session) return { error: "Not signed in." };
 
   const ticker = String(formData.get("ticker") ?? "")
@@ -27,7 +28,7 @@ export async function addTicker(
 
   const [quote] = computeQuotes([ticker]);
 
-  const db = await getDb(await headers());
+  const db = await getDb(hdrs);
   await db
     .insert(watchlistItems)
     .values({ userId: session.userId, ticker, addedAtPrice: String(quote.price) })
@@ -38,11 +39,12 @@ export async function addTicker(
 }
 
 export async function removeTicker(formData: FormData): Promise<void> {
-  const session = await getSession();
+  const hdrs = await headers();
+  const session = await getSession(hdrs);
   if (!session) return;
 
   const itemId = String(formData.get("itemId") ?? "");
-  const db = await getDb(await headers());
+  const db = await getDb(hdrs);
   await db
     .delete(watchlistItems)
     .where(and(eq(watchlistItems.id, itemId), eq(watchlistItems.userId, session.userId)));

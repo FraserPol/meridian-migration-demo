@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { getSession, destroySession } from "@/lib/session";
 
 // Reads the session cookie to gate the whole dashboard — request-time by
@@ -13,7 +14,7 @@ async function signOutAction() {
 }
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession();
+  const session = await getSession(await headers());
   if (!session) redirect("/login");
 
   return (

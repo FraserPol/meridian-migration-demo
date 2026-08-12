@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { getSession, destroySession } from "@/lib/session";
 
 // Reads the session cookie to gate the admin area — request-time by
@@ -12,7 +13,7 @@ async function signOutAction() {
 }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession();
+  const session = await getSession(await headers());
   if (!session || session.role !== "admin") redirect("/login");
 
   return (

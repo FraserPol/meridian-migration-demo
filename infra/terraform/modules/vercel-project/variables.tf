@@ -24,6 +24,11 @@ variable "vault_db_role_name" {
   type = string
 }
 
+variable "vault_kv_app_config_path" {
+  description = "Full KV-v2 data path Vault stores AUTH_SECRET under — see modules/vault-config's kv_app_config_path output."
+  type        = string
+}
+
 variable "rds_endpoint" {
   type = string
 }

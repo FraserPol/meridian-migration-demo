@@ -9,7 +9,7 @@ import { migrationCopilotAgent } from "@/lib/ai/agent";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  const session = await getSession();
+  const session = await getSession(req.headers);
   if (!session || session.role !== "admin") {
     // The Migration Copilot is scoped to the legacy IT admin persona.
     // Enforced again here (not just in middleware/proxy) because this

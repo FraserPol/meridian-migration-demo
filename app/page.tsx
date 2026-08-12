@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { getSession } from "@/lib/session";
 
 // Reads the session cookie to decide where to redirect — inherently
@@ -6,7 +7,7 @@ import { getSession } from "@/lib/session";
 export const instant = false;
 
 export default async function HomePage() {
-  const session = await getSession();
+  const session = await getSession(await headers());
   if (!session) {
     redirect("/login");
   }

@@ -14,8 +14,8 @@ import { getLegacyRouteInventory } from "@/lib/legacy-inventory";
  * behind "use cache" — only the data lookup it gates does (see
  * lib/legacy-inventory.ts).
  */
-export async function GET() {
-  const session = await getSession();
+export async function GET(req: Request) {
+  const session = await getSession(req.headers);
   if (!session || session.role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

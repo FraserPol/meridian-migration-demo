@@ -7,16 +7,17 @@
  */
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { getAuthSecret } from "@/lib/vault";
 
 const SESSION_COOKIE = "meridian_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 8; // 8 hours
 
-function getSecretKey(): Uint8Array {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.length < 16) {
+async function getSecretKey(headers?: Pick<Headers, "get">): Promise<Uint8Array> {
+  const secret = await getAuthSecret(headers);
+  if (secret.length < 16) {
     throw new Error(
-      "AUTH_SECRET is not set (or too short). Set a random 32+ char string " +
-        "in .env.local — see .env.example.",
+      "AUTH_SECRET (or Vault's app-config AUTH_SECRET) is set but too short " +
+        "— need a random 32+ char string. See .env.example.",
     );
   }
   return new TextEncoder().encode(secret);
@@ -28,12 +29,15 @@ export type SessionPayload = {
   role: "customer" | "admin";
 };
 
-export async function createSession(payload: SessionPayload): Promise<void> {
+export async function createSession(
+  payload: SessionPayload,
+  headers?: Pick<Headers, "get">,
+): Promise<void> {
   const token = await new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
-    .sign(getSecretKey());
+    .sign(await getSecretKey(headers));
 
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
@@ -50,11 +54,11 @@ export async function destroySession(): Promise<void> {
   cookieStore.delete(SESSION_COOKIE);
 }
 
-export async function getSession(): Promise<SessionPayload | null> {
+export async function getSession(headers?: Pick<Headers, "get">): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  return verifyToken(token);
+  return verifyToken(token, headers);
 }
 
 /**
@@ -64,14 +68,18 @@ export async function getSession(): Promise<SessionPayload | null> {
  */
 export async function getSessionFromRequestCookie(
   token: string | undefined,
+  headers?: Pick<Headers, "get">,
 ): Promise<SessionPayload | null> {
   if (!token) return null;
-  return verifyToken(token);
+  return verifyToken(token, headers);
 }
 
-async function verifyToken(token: string): Promise<SessionPayload | null> {
+async function verifyToken(
+  token: string,
+  headers?: Pick<Headers, "get">,
+): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getSecretKey());
+    const { payload } = await jwtVerify(token, await getSecretKey(headers));
     return {
       userId: payload.userId as string,
       email: payload.email as string,

@@ -13,7 +13,7 @@ import { computeQuotes, KNOWN_TICKERS } from "@/lib/quotes";
  * crossing the take-home brief asks for.
  */
 export async function GET(req: NextRequest) {
-  const session = await getSession();
+  const session = await getSession(req.headers);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
