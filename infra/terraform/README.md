@@ -6,13 +6,21 @@ into that VPC, Vault's JWT/OIDC trust of Vercel plus its database secrets
 engine, an AWS IAM OIDC trust for anything the app needs directly on AWS,
 and (optionally) the Vercel project itself.
 
-**This was written and reviewed by hand, not applied.** The sandbox this
-repo was built in has no `terraform` binary, no AWS/HCP/Vercel credentials,
-and no outbound access to releases.hashicorp.com — so `terraform validate`
-/ `terraform plan` could not be run here. Run both yourself before
-`apply`, especially on the `hcp_vault_cluster`, `hcp_aws_network_peering`,
-and `vault_database_secret_backend_*` resources, which are the ones most
-likely to have drifted from the provider docs by the time you read this.
+**This has since been applied for real** against live AWS/HCP/Vercel
+accounts, end to end through `PRODUCTION_SETUP.md` — not just
+`terraform validate`/`plan`. That run surfaced (and this repo now fixes)
+several bugs that hand-review alone missed: `modules/hcp-vault`'s
+`vault_addr` output comparing a possibly-`null` attribute against `""`
+instead of checking `public_endpoint` directly; `modules/aws-oidc-trust`
+and `modules/vault-config` both using the OIDC *issuer* URL where Vercel's
+token `aud` claim actually needs a different URL, and both using an
+internal `environment` naming convention ("dev") where Vercel's real OIDC
+`environment` claim needed `production`; and HCP Vault Dedicated requiring
+every request to carry `X-Vault-Namespace: admin` (root is reserved for
+HashiCorp's own platform operations) — none of which surface in
+`terraform plan`, only in a real `apply` plus a real login attempt. See
+`PRODUCTION_SETUP.md`'s Troubleshooting section and the git history for
+specifics if you're debugging something similar.
 
 ## Prerequisites
 
@@ -64,14 +72,30 @@ needs to point the app's `VAULT_ADDR` / `PGHOST` at the real
 infrastructure instead of the local `DATABASE_URL` fallback — see
 `../../.env.example`.
 
+## Vault namespace
+
+The `vault` provider block sets `namespace = var.vault_namespace` (default
+`"admin"`). HCP Vault Dedicated reserves the root namespace for
+HashiCorp's own platform operations — every resource this config creates
+(JWT auth backend, database secrets engine, KV mount) actually lives under
+`admin/`, not root. This has to be explicit on both sides: the provider
+config here, and a `VAULT_NAMESPACE` env var on the app
+(`module.vercel_project` → `lib/vault.ts`'s `X-Vault-Namespace` header).
+Terraform's own bootstrap token happens to default into `admin/`, which is
+why this was easy to miss by hand-review alone — see
+`PRODUCTION_SETUP.md`'s Step 5 note and Troubleshooting section.
+
 ## What this does NOT automate
 
-- **Secure Compute VPC peering between Vercel and this AWS VPC.** As of
-  this writing that's a dashboard/API step on Vercel's side (accept the
-  peering connection Vercel initiates), not yet a stable Terraform
-  resource in the `vercel/vercel` provider. Do this manually after
-  `module.vercel_project` creates the project: Vercel dashboard → Project
-  → Settings → Secure Compute.
+- **Secure Compute VPC peering between Vercel and this AWS VPC.** Beyond
+  not being a stable Terraform resource in the `vercel/vercel` provider
+  yet, **Secure Compute itself is an Enterprise-only Vercel feature** — on
+  Hobby/Pro the dashboard just says "Contact Sales," so this can't be set
+  up at all on those plans, not just "not yet automated." `terraform.tfvars`
+  has `vault_public_endpoint`/`rds_publicly_accessible` escape hatches for
+  reaching Vault/RDS over the public internet instead — see
+  `PRODUCTION_SETUP.md`'s Step 6 for the full workaround and why it's
+  demo-only, not a production recommendation.
 - **HCP Vault cluster tier for production.** `terraform.tfvars.example`
   defaults to `dev_small` to keep this cheap to try. Bump `vault_tier` to
   at least `plus_small` before pointing this at a real Staging

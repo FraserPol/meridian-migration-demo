@@ -108,6 +108,18 @@ terraform apply
 
 Type `yes` when prompted.
 
+**Why the `vault` provider block has a `namespace`:** HCP Vault Dedicated
+reserves the root namespace for HashiCorp's own platform operations — it's
+not customer-accessible. Everything this apply creates (the JWT auth
+backend, the `vercel-app` role, the database secrets engine, the KV mount)
+actually lives under the `admin` namespace, confirmed directly against a
+live cluster. `var.vault_namespace` (default `"admin"`) makes this
+explicit on the Terraform side; the app needs the same value at runtime,
+which is why `module.vercel_project` also sets a `VAULT_NAMESPACE` env var
+— see `lib/vault.ts`'s `X-Vault-Namespace` header. If you ever see Vault
+report a role or path as "not found" despite Terraform showing it as
+created, this is almost certainly why — check Troubleshooting below.
+
 ## Step 6: Give the deployed app a path to Vault + RDS
 
 The architecture in `solution-architecture.md` calls for **Vercel Secure
@@ -239,5 +251,12 @@ HCP Vault on every request — the exact pattern described in
   or `vercel deploy` (Steps 8–9):** see the `vercel link` command under
   Step 8 — Terraform created the project via the API, so this checkout was
   never linked locally the way `vercel link`/`vercel new` would do it.
+- **Vault says a role or path "could not be found," but `terraform state
+  show` confirms it exists:** see the namespace note under Step 5 — you're
+  almost certainly hitting the resource without `X-Vault-Namespace: admin`.
+  On the Terraform side this means the `vault` provider block is missing
+  `namespace = var.vault_namespace`; on the app side it means
+  `VAULT_NAMESPACE` isn't set or isn't reaching `lib/vault.ts`'s Vault API
+  calls.
 - **Anything else:** see "Known limitations" in `README.md` and
   `infra/terraform/README.md`.
