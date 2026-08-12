@@ -11,7 +11,7 @@ folder). Read that first for the why; this README is the how.
 **Live demo:** _add your Vercel deployment URL here after `vercel deploy`_
 **Repo:** _add your public GitHub URL here after pushing_
 
-**Deploying this yourself?** Skip ahead to [`PRODUCTION_SETUP.md`](./meridian-migration-demo/PRODUCTION_SETUP.md) — explicit, copy-paste commands in order, from Terraform init through the full AWS RDS + HCP Vault production setup.
+**Deploying this yourself?** Skip ahead to [`PRODUCTION_SETUP.md`](https://github.com/FraserPol/meridian-migration-demo/blob/main/PRODUCTION_SETUP.md) — explicit, copy-paste commands in order, from Terraform init through the full AWS RDS + HCP Vault production setup.
 
 ## Demo accounts
 
