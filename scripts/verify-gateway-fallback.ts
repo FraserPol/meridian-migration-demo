@@ -6,13 +6,21 @@
  * the whole request the way an invalid slug does with no fallback list
  * configured (see the AI Gateway docs' "Invalid model identifier" case).
  *
- * Run once AI Gateway billing is set up (a 402/403 "no card on file" error
- * here means this hasn't been verified yet, not that the toggle is broken):
+ * Verified 2026-08-13 against a live account with billing set up: it does
+ * fall through. Also surfaced a second bug while verifying: `result.response
+ * .modelId` (and StepResult's `model.provider`/`model.modelId`, used
+ * throughout the audit trail) report the *requested* model, captured before
+ * the call happens — never what Gateway's routing actually served. The real
+ * answer only appears in `providerMetadata.gateway.routing` after the call
+ * completes; see servedModel() in lib/ai/routing.ts, which this script now
+ * uses instead of the misleading `response.modelId`.
+ *
+ * Re-run any time this needs re-checking (e.g. after a model deprecation):
  *
  *   set -a && source .env.local && set +a && npx tsx scripts/verify-gateway-fallback.ts
  */
 import { generateText, gateway, APICallError } from "ai";
-import { FAST_MODEL } from "@/lib/ai/routing";
+import { FAST_MODEL, servedModel } from "@/lib/ai/routing";
 
 const BROKEN_MODEL = `${FAST_MODEL}-simulated-unavailable`;
 
@@ -31,7 +39,8 @@ async function main() {
     });
     console.log("RESULT: fell through to the fallback model — the toggle's assumption holds.");
     console.log("text:", result.text);
-    console.log("served by:", result.response?.modelId ?? "(unknown — check result.providerMetadata.gateway)");
+    console.log("served by (servedModel(), the accurate source):", servedModel(result.steps[0]));
+    console.log("raw step.model (misleading — always the requested slug):", result.steps[0].model);
   } catch (err) {
     console.log("RESULT: did NOT fall through — the toggle's assumption does not hold as coded.");
     if (APICallError.isInstance(err)) {

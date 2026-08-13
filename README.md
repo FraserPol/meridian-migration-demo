@@ -196,13 +196,26 @@ unavailable") applying to an invalid/nonexistent slug the same way it
 applies to a model that's merely down; `order`'s same-model provider
 failover can't be fault-injected this way (an invalid provider ID there is
 a config error Gateway rejects outright), but `models` is a different
-mechanism and is documented to behave differently. **Not yet verified
-against a live account** — `scripts/verify-gateway-fallback.ts` checks it
-in isolation; run that once AI Gateway billing is set up, before relying on
-the toggle in a live demo. Runs made with it on are badged (🔧) in the
-audit table above; the Provider/Tier columns there show whichever model
-actually served the response, which should be the fallback, not the
-primary, when it's working.
+mechanism and is documented to behave differently. **Verified live**
+(2026-08-13, `scripts/verify-gateway-fallback.ts`) — it does fall through.
+Runs made with the toggle on are badged (🔧) in the audit table above; the
+Provider/Tier columns there show whichever model actually served the
+response — the fallback, not the primary.
+
+Verifying this also surfaced a second, unrelated bug: `StepResult.model`
+(`step.model.provider`/`.modelId`, what the audit trail originally read)
+is captured from the *requested* model config before the call happens —
+for any Gateway-routed model it's always the literal string `"gateway"`
+and the full requested slug, never what Gateway's `order`/`models` routing
+actually served the request with. That means the audit trail's "which
+provider served this" column, and every cost estimate keyed off it, were
+silently wrong from the moment this feature was built — not just for the
+failover toggle, but for ordinary `order: ["bedrock", "anthropic"]`
+failover too. The real answer only exists in
+`providerMetadata.gateway.routing` (`finalProvider` + `canonicalSlug`)
+after the call completes; `servedModel()` in `lib/ai/routing.ts` reads
+that instead, and the workflow and this verification script both use it
+now.
 
 ## Known limitations (what I'd flag before anyone relies on this)
 
@@ -212,10 +225,12 @@ primary, when it's working.
   with a 403 (`customer_verification_required`) that isn't surfaced in the
   chat UI. Add a card under Vercel dashboard → your team → **AI** →
   **Add credit card**. Not something Terraform or application code can
-  route around. This also blocks verifying the live-failover toggle below —
-  the 403 fires before Gateway ever evaluates the model/fallback list, so
-  it can't be distinguished from a real fallback failure without a card on
-  file first.
+  route around. Fixed as of 2026-08-13 for this team. There's a second,
+  separate layer behind it: a card on file alone doesn't unlock every
+  model — some (`openai/gpt-5.5` and `anthropic/claude-haiku-4.5` both hit
+  this) return a distinct 403 ("Free tier users do not have access to this
+  model") until the team also has actual paid credits, not just a verified
+  card — see the top-up link in that error's message.
 - **Cache Components (`next.config.ts`'s `cacheComponents: true`) is
   enabled but only fully adopted on one code path.** Every authenticated
   page reads the session cookie and does a live, per-user DB read — there

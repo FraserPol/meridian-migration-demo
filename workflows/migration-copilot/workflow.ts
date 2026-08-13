@@ -7,6 +7,7 @@ import { MIGRATION_COPILOT_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { estimateCostUsd } from "@/lib/ai/pricing";
 import {
   classifyQueryComplexity,
+  servedModel,
   FAST_MODEL,
   FRONTIER_MODEL,
   FRONTIER_FALLBACK_MODEL,
@@ -150,14 +151,13 @@ export async function migrationCopilotWorkflow(
   );
   const providers: CopilotProviderRecord[] = [
     {
-      provider: "gateway-classifier",
-      modelId: FAST_MODEL,
+      provider: classification.provider,
+      modelId: classification.modelId,
       role: "classifier",
       note: classification.reason,
     },
     ...result.steps.map((step) => ({
-      provider: step.model.provider,
-      modelId: step.model.modelId,
+      ...servedModel(step),
       role: "agent" as const,
     })),
   ];

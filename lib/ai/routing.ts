@@ -23,6 +23,55 @@ export interface ClassificationResult {
   reason: string;
   inputTokens: number;
   outputTokens: number;
+  provider: string;
+  modelId: string;
+}
+
+export interface ServedModelInfo {
+  provider: string;
+  modelId: string;
+}
+
+function bareModelId(slug: string): string {
+  const slashIdx = slug.indexOf("/");
+  return slashIdx >= 0 ? slug.slice(slashIdx + 1) : slug;
+}
+
+interface GatewayRoutingMetadata {
+  finalProvider?: string;
+  canonicalSlug?: string;
+}
+
+function gatewayRouting(providerMetadata: unknown): GatewayRoutingMetadata | undefined {
+  const gatewayMeta = (providerMetadata as { gateway?: { routing?: GatewayRoutingMetadata } } | undefined)
+    ?.gateway;
+  return gatewayMeta?.routing;
+}
+
+/**
+ * The AI SDK's own `model.provider`/`model.modelId` fields (on both
+ * `StepResult` and other result types) are captured from the *requested*
+ * model config before the call happens — for a Gateway-routed model that's
+ * always the literal string "gateway" and the full requested slug, never
+ * what Gateway's internal order/models fallback actually served the
+ * request with. Confirmed empirically (see
+ * scripts/verify-gateway-fallback.ts): during a real fallback, `model.*`
+ * still names the *broken* primary, while `providerMetadata.gateway.routing`
+ * (only populated after the call completes) has the truth —
+ * `finalProvider` (the provider/infra that actually served it) and
+ * `canonicalSlug` (which model, as "provider/model"). This is what the
+ * audit trail (workflows/migration-copilot/workflow.ts) reads, falling
+ * back to the static `model` fields only if that metadata is ever missing.
+ */
+export function servedModel(step: {
+  model: { provider: string; modelId: string };
+  providerMetadata?: unknown;
+}): ServedModelInfo {
+  const routing = gatewayRouting(step.providerMetadata);
+  if (routing?.finalProvider && routing?.canonicalSlug) {
+    return { provider: routing.finalProvider, modelId: bareModelId(routing.canonicalSlug) };
+  }
+  return { provider: step.model.provider, modelId: bareModelId(step.model.modelId) };
 }
 
 const CLASSIFIER_INSTRUCTIONS =
@@ -50,11 +99,18 @@ export async function classifyQueryComplexity(
   "use step";
 
   if (!latestUserText.trim()) {
-    return { tier: "frontier", reason: "Empty or non-text turn — defaulting to frontier.", inputTokens: 0, outputTokens: 0 };
+    return {
+      tier: "frontier",
+      reason: "Empty or non-text turn — defaulting to frontier.",
+      inputTokens: 0,
+      outputTokens: 0,
+      provider: "anthropic",
+      modelId: bareModelId(FRONTIER_MODEL),
+    };
   }
 
   try {
-    const { object, usage } = await generateObject({
+    const { object, usage, providerMetadata } = await generateObject({
       model: gateway(FAST_MODEL),
       schema: z.object({
         tier: z.enum(["fast", "frontier"]),
@@ -73,10 +129,16 @@ export async function classifyQueryComplexity(
         },
       },
     });
+    const routing = gatewayRouting(providerMetadata);
+    const served =
+      routing?.finalProvider && routing?.canonicalSlug
+        ? { provider: routing.finalProvider, modelId: bareModelId(routing.canonicalSlug) }
+        : { provider: "anthropic", modelId: bareModelId(FAST_MODEL) };
     return {
       ...object,
       inputTokens: usage.inputTokens ?? 0,
       outputTokens: usage.outputTokens ?? 0,
+      ...served,
     };
   } catch (err) {
     return {
@@ -84,10 +146,12 @@ export async function classifyQueryComplexity(
       reason: `Classifier call failed (${err instanceof Error ? err.message : "unknown error"}) — defaulting to frontier.`,
       inputTokens: 0,
       outputTokens: 0,
+      provider: "anthropic",
+      modelId: bareModelId(FAST_MODEL),
     };
   }
 }
 
 export function tierForModelId(modelId: string): ModelTier {
-  return modelId === FAST_MODEL ? "fast" : "frontier";
+  return modelId === bareModelId(FAST_MODEL) ? "fast" : "frontier";
 }
