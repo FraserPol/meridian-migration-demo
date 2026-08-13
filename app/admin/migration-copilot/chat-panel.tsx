@@ -67,7 +67,7 @@ function RunHistory({ trigger }: { trigger: number }) {
 
   return (
     <div className="card" style={{ marginTop: 16 }}>
-      <h2 style={{ fontSize: 14, marginBottom: 8 }}>Recent runs (audit trail)</h2>
+      <h2>Recent runs (audit trail)</h2>
       <table style={{ width: "100%", fontSize: 13 }}>
         <thead>
           <tr style={{ textAlign: "left", color: "var(--muted)" }}>
@@ -172,24 +172,33 @@ export function ChatPanel() {
         )}
       </div>
 
-      <label
-        style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, marginTop: 12 }}
-        title="Deliberately breaks the primary model slug so AI Gateway's real providerOptions.gateway.models fallback list has to serve the response — a live failover, not a narrated one. Check the Provider/Tier columns below after sending to see the fallback model that actually answered."
-      >
-        <input
-          type="checkbox"
-          checked={simulateFailover}
-          onChange={(e) => setSimulateFailover(e.target.checked)}
-        />
-        Trigger live model failover for this message (see tooltip)
-      </label>
+      <div className="toolbar-row">
+        <span className="switch">
+          <input
+            type="checkbox"
+            checked={simulateFailover}
+            onChange={(e) => setSimulateFailover(e.target.checked)}
+            aria-describedby="failover-toggle-hint"
+          />
+          <span className="switch-track" />
+          <span className="switch-thumb" />
+        </span>
+        <span>Trigger live model failover for this message</span>
+        <span
+          className="info-icon"
+          id="failover-toggle-hint"
+          title="Deliberately breaks the primary model slug so AI Gateway's real providerOptions.gateway.models fallback list has to serve the response — a live failover, not a narrated one. Check the Provider/Tier columns below after sending to see the fallback model that actually answered."
+        >
+          i
+        </span>
+      </div>
 
       <form
         onSubmit={(e) => {
           e.preventDefault();
           submit(input);
         }}
-        style={{ display: "flex", gap: 10, marginTop: 8 }}
+        style={{ display: "flex", gap: 10 }}
       >
         <input
           value={input}
