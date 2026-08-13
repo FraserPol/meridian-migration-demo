@@ -225,6 +225,33 @@ after the call completes; `servedModel()` in `lib/ai/routing.ts` reads
 that instead, and the workflow and this verification script both use it
 now.
 
+**A third, more serious bug: the Migration Copilot didn't actually work in
+production at all, until 2026-08-13.** Every real chat message crashed the
+underlying Workflow run with `Cannot find module '.../.well-known/workflow
+/v1/flow/route.js'`, then `Error: VERCEL_DEPLOYMENT_ID environment variable
+is not set`, and the workflow runtime tried (and failed — the path is
+read-only) to write local run-state files under `/var/task/.workflow-data`
+— local-dev filesystem persistence, running inside a deployed Function.
+Root cause: this Vercel project's `automatically_expose_system_environment_
+variables` setting was `false` (confirmed via the Vercel API), so
+`VERCEL_ENV`/`VERCEL_DEPLOYMENT_ID`/etc. were never populated into
+`process.env` at runtime — and `@workflow/next`'s Vercel-vs-local detection
+(`node_modules/@workflow/next/dist/index.js`) keys off exactly
+`VERCEL_DEPLOYMENT_ID`. Since this project was created by
+`infra/terraform/modules/vercel-project` (see `PRODUCTION_SETUP.md`), and
+its `vercel_project` resource never set that attribute, the Vercel provider's
+default (`false`) applied. Fixed in two places: flipped to `true` directly
+via the Vercel API for the live project, and added
+`automatically_expose_system_environment_variables = true` to the Terraform
+resource so re-provisioning (or a fresh `terraform apply` elsewhere) doesn't
+reintroduce it. Verified end-to-end afterward: a real login + chat message
+against the deployed app now completes, and `npx workflow inspect runs
+--backend vercel` shows real, completed runs. Separately, the
+`migration_copilot_runs` table had also never been migrated into the real
+production RDS database (a `relation "migration_copilot_runs" does not
+exist` error) — unrelated to the above, fixed the same day by running
+`npm run db:migrate` against production per `PRODUCTION_SETUP.md` Step 7.
+
 ## Known limitations (what I'd flag before anyone relies on this)
 
 - **AI Gateway requires a payment method on file for the Vercel team**,

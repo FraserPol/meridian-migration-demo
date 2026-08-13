@@ -21,6 +21,19 @@ resource "vercel_project" "app" {
     type = "github"
     repo = var.github_repo # "your-org/your-repo"
   }
+
+  # Without this, VERCEL_ENV/VERCEL_DEPLOYMENT_ID/etc. are never populated
+  # in process.env at runtime — the provider's default is false. Confirmed
+  # the hard way: with this off, the Migration Copilot's DurableAgent
+  # workflow crashed on every real chat message in production
+  # ("Cannot find module '.../.well-known/workflow/v1/flow/route.js'",
+  # then "VERCEL_DEPLOYMENT_ID environment variable is not set") — the
+  # Workflow SDK's Vercel World integration (workflows/migration-copilot/
+  # workflow.ts, via @workflow/next) depends on VERCEL_DEPLOYMENT_ID being
+  # present to know which deployment a run belongs to (see
+  # node_modules/workflow/docs/deploying/world/vercel-world.mdx
+  # "Versioning"). See README.md "Known limitations."
+  automatically_expose_system_environment_variables = true
 }
 
 resource "vercel_project_environment_variable" "vault_addr" {

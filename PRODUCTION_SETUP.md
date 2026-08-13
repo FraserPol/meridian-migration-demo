@@ -120,6 +120,19 @@ which is why `module.vercel_project` also sets a `VAULT_NAMESPACE` env var
 report a role or path as "not found" despite Terraform showing it as
 created, this is almost certainly why — check Troubleshooting below.
 
+**Why `module.vercel_project`'s `vercel_project` resource sets
+`automatically_expose_system_environment_variables = true`:** without it,
+`VERCEL_ENV`/`VERCEL_DEPLOYMENT_ID`/etc. are never populated into the
+deployed Function's `process.env` — the Vercel provider's default is
+`false`. This isn't hypothetical: it's exactly what broke the Migration
+Copilot in production on 2026-08-13 (see README.md's Known limitations)
+before this attribute was added — the Workflow SDK's Vercel-vs-local
+detection depends on `VERCEL_DEPLOYMENT_ID` being present, and without it
+every real chat message crashed. If you're applying this module against an
+**already-existing** project created before this fix landed, Terraform
+will show a diff for this attribute on your next `terraform apply` —
+apply it.
+
 ## Step 6: Give the deployed app a path to Vault + RDS
 
 The architecture in `solution-architecture.md` calls for **Vercel Secure
@@ -279,6 +292,16 @@ end-to-end.
   `namespace = var.vault_namespace`; on the app side it means
   `VAULT_NAMESPACE` isn't set or isn't reaching `lib/vault.ts`'s Vault API
   calls.
+- **The Migration Copilot's chat stream starts, then the deployed Function
+  logs `Cannot find module '.../.well-known/workflow/v1/flow/route.js'`
+  followed by `VERCEL_DEPLOYMENT_ID environment variable is not set`:** the
+  project's `automatically_expose_system_environment_variables` setting is
+  `false` — see the note under Step 5. Fix it either by re-applying this
+  module (it's set in Terraform now) or directly: `PATCH
+  https://api.vercel.com/v10/projects/<project>?teamId=<team>` with body
+  `{"autoExposeSystemEnvs": true}`, then redeploy (`vercel deploy --prod`)
+  so the running Function actually picks it up — the setting alone doesn't
+  restart existing deployments.
 - **Everything above succeeds — DB reads work, login works — but the
   Migration Copilot's chat stream starts then fails:** this is unrelated to
   Terraform/Vault/RDS; see Step 10. It's an AI Gateway billing gate at the

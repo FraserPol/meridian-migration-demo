@@ -121,3 +121,15 @@ Visit your URL from Step 6:
      credits yet (separate from just having a verified card). Top up under
      the same **AI** tab; the error message includes a direct link.
   Neither is something `vercel env` or application code can route around.
+- **Migration Copilot's chat stream starts, then the deployed Function logs
+  `Cannot find module '.../.well-known/workflow/v1/flow/route.js'` or
+  `VERCEL_DEPLOYMENT_ID environment variable is not set`:** the project's
+  **Settings → Environment Variables → "Automatically expose System
+  Environment Variables"** toggle is off. Without it, `VERCEL_ENV`/
+  `VERCEL_DEPLOYMENT_ID`/etc. never reach the deployed Function's
+  `process.env` — and the Workflow SDK's Vercel-vs-local-dev detection
+  depends on `VERCEL_DEPLOYMENT_ID` specifically, so it silently runs the
+  Migration Copilot's workflow in local-filesystem mode inside a deployed
+  Function (whose filesystem is read-only), crashing every real chat
+  message. Turn the toggle on, then redeploy (`vercel deploy --prod`) —
+  flipping the setting doesn't restart already-running deployments.
