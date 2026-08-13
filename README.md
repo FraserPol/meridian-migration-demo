@@ -10,7 +10,7 @@ This is the working demo for the take-home submission at
 specifically its [`solution-architecture.md`](https://github.com/FraserPol/vercel-tech-excersise/blob/main/solution-architecture.md).
 Read that first for the why; this README is the how.
 
-**Live demo:** _add your Vercel deployment URL here once you're ready to publish it_
+**Live demo:** https://meridian-migration-demo.vercel.app
 **Repo:** https://github.com/FraserPol/meridian-migration-demo (this repo)
 
 **Deploying this yourself?** Skip ahead to [`PRODUCTION_SETUP.md`](./PRODUCTION_SETUP.md) — explicit, copy-paste commands in order, from Terraform init through the full AWS RDS + HCP Vault production setup.
@@ -31,6 +31,7 @@ These are created by `npm run db:seed` (see below) — not present until you run
 
 ```
 app/                    Next.js App Router
+  layout.tsx            Root layout — mounts <Analytics/> and <SpeedInsights/>
   login/                Credentials-based login (jose-signed session cookie)
   dashboard/             Customer-facing: profile + watchlist
   admin/migration-copilot/  Admin-only: the AI SDK + AI Gateway chat tool
@@ -88,6 +89,13 @@ will serve requests at all, even free-tier ones — see Known Limitations.
 
 For the full production path (real AWS RDS + HCP Vault instead of the
 `DATABASE_URL` fallback), see [`PRODUCTION_SETUP.md`](./PRODUCTION_SETUP.md).
+
+**Observability out of the box.** `@vercel/analytics` and
+`@vercel/speed-insights` are both wired into `app/layout.tsx` — page views
+and Core Web Vitals start showing up under the project's **Analytics** and
+**Speed Insights** dashboard tabs once real traffic hits the deployment, no
+further setup needed. This is separate from the Migration Copilot's own
+AI Gateway spend/audit tracking described below.
 
 ## Two ways to run this app, on purpose
 

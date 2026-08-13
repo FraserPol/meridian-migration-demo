@@ -228,6 +228,27 @@ vercel deploy --prod
 HCP Vault on every request — the exact pattern described in
 `../solution-architecture.md`.
 
+## Step 10: AI Gateway billing (for the Migration Copilot)
+
+None of the above touches AI Gateway — the Migration Copilot is a separate
+dependency with its own gate, unrelated to Vault/RDS being correctly wired.
+Without this step the rest of the app works, but the Migration Copilot's
+chat stream starts ("thinking…") and then fails:
+
+1. Vercel dashboard → your team → **AI** → add a payment method. Without
+   one, every Gateway call fails with a 403
+   (`customer_verification_required`), even free-tier ones.
+2. Top up (or enable auto top-up for) actual paid Gateway credits, same
+   tab. A verified card alone doesn't unlock every model — some return a
+   separate 403 ("Free tier users do not have access to this model") until
+   the team has real paid credits, not just a card on file.
+
+No Terraform variable or app code controls this — it's purely a Vercel
+team-level billing setting. See `README.md`'s Known Limitations for how
+this surfaces if skipped, and `scripts/verify-gateway-fallback.ts` for a
+standalone script that confirms Gateway is actually serving requests
+end-to-end.
+
 ---
 
 ## Troubleshooting
@@ -258,5 +279,9 @@ HCP Vault on every request — the exact pattern described in
   `namespace = var.vault_namespace`; on the app side it means
   `VAULT_NAMESPACE` isn't set or isn't reaching `lib/vault.ts`'s Vault API
   calls.
+- **Everything above succeeds — DB reads work, login works — but the
+  Migration Copilot's chat stream starts then fails:** this is unrelated to
+  Terraform/Vault/RDS; see Step 10. It's an AI Gateway billing gate at the
+  Vercel team level, not something this infra provisions.
 - **Anything else:** see "Known limitations" in `README.md` and
   `infra/terraform/README.md`.

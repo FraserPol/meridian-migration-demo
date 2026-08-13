@@ -83,10 +83,16 @@ This prints your public URL at the end — put it at the top of `README.md`.
 ## Step 7: Enable AI Gateway (for the Migration Copilot)
 
 Nothing to configure in code — once deployed, AI Gateway authenticates
-automatically via the project's OIDC token. Just confirm it's on:
+automatically via the project's OIDC token. Just confirm it's on and
+billed:
 
 1. Vercel dashboard → your team → **AI Gateway** tab.
 2. If it says "Enable AI Gateway," click it. If you see a dashboard, you're done.
+3. **Also add a payment method and top up credits** under your team →
+   **AI** — even free-tier usage requires a verified card on file, and some
+   models additionally require actual paid credits, not just a verified
+   card. Skipping this doesn't break the deploy; it makes the Migration
+   Copilot fail silently at chat time instead (see Troubleshooting below).
 
 ## Step 8: Try it
 
@@ -105,3 +111,13 @@ Visit your URL from Step 6:
   not just Preview.
 - **Migration Copilot returns an auth error:** AI Gateway isn't enabled for
   your team yet — see Step 7.
+- **Migration Copilot's chat stream starts ("thinking…") then fails, or the
+  server logs show a 403:** this is a billing issue, not a code or auth
+  issue — two separate things Vercel gates on:
+  1. `customer_verification_required` — no payment method on file at all.
+     Add one: Vercel dashboard → your team → **AI** → **Add credit card**.
+  2. `"Free tier users do not have access to this model"` — a card is on
+     file, but the team hasn't purchased/topped up actual paid Gateway
+     credits yet (separate from just having a verified card). Top up under
+     the same **AI** tab; the error message includes a direct link.
+  Neither is something `vercel env` or application code can route around.
