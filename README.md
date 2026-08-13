@@ -5,10 +5,12 @@ tracks a stock watchlist — plus a **Migration Copilot**, an AI SDK + AI
 Gateway–powered tool aimed at the legacy IT admins deciding whether to
 move their own front end and app tier to Vercel.
 
-This is the working demo for the take-home submission at
-[**FraserPol/vercel-tech-excersise**](https://github.com/FraserPol/vercel-tech-excersise),
-specifically its [`solution-architecture.md`](https://github.com/FraserPol/vercel-tech-excersise/blob/main/solution-architecture.md).
-Read that first for the why; this README is the how.
+This is the take-home submission: design doc + working demo in one repo.
+Start with [`solution-architecture.md`](./solution-architecture.md) — the
+target-state architecture, the OIDC-based boundary-crossing pattern
+between Vercel and AWS/HCP Vault this demo implements, and the
+migration/rollout plan. Read that first for the why; this README is the
+how.
 
 **Live demo:** https://meridian-migration-demo.vercel.app
 **Repo:** https://github.com/FraserPol/meridian-migration-demo (this repo)
