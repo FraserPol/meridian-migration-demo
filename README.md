@@ -12,7 +12,7 @@ README covers running it locally, deploying it, demo accounts, and known
 limitations. It's a separate repo (not a subdirectory here) so its own
 commit history stays intact and independently reviewable.
 
-**Live demo:** _add your Vercel deployment URL here once you're ready to publish it_
+**Live demo:** https://meridian-migration-demo.vercel.app
 
 ## This repo
 
