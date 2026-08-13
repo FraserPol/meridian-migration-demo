@@ -21,7 +21,7 @@
     "@vercel/speed-insights": "^2.0.0",
     "@workflow/ai": "^4.2.0",
     "@workflow/next": "^4.1.6",
-    "ai": "^6.0.252",
+    "ai": "^6.0.253",
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.36.4",
     "jose": "^5.9.6",
