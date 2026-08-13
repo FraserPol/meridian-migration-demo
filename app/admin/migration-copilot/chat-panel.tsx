@@ -5,6 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import type { MigrationCopilotUIMessage } from "@/workflows/migration-copilot/workflow";
 import type { CopilotProviderRecord, MigrationCopilotRun } from "@/lib/db/schema";
+import { tierForModelId } from "@/lib/ai/routing";
 
 const SUGGESTIONS = [
   "What should we migrate first?",
@@ -19,8 +20,20 @@ function formatCost(usd: string): string {
 }
 
 function providerSummary(providers: CopilotProviderRecord[]): string {
-  const unique = [...new Set(providers.map((p) => p.provider))];
+  // Classifier row (lib/ai/routing.ts) is a separate cost/audit line, not
+  // part of "which provider served the answer" — excluded here.
+  const agentProviders = providers.filter((p) => p.role !== "classifier");
+  const unique = [...new Set(agentProviders.map((p) => p.provider))];
   return unique.join(" → ");
+}
+
+function tierSummary(providers: CopilotProviderRecord[]): string {
+  const agentProvider = providers.find((p) => p.role !== "classifier");
+  return agentProvider ? tierForModelId(agentProvider.modelId) : "—";
+}
+
+function classifierNote(providers: CopilotProviderRecord[]): string | undefined {
+  return providers.find((p) => p.role === "classifier")?.note;
 }
 
 /**
@@ -60,6 +73,7 @@ function RunHistory({ trigger }: { trigger: number }) {
           <tr style={{ textAlign: "left", color: "var(--muted)" }}>
             <th>When</th>
             <th>Provider</th>
+            <th>Tier</th>
             <th>Tokens</th>
             <th>Est. cost</th>
           </tr>
@@ -72,13 +86,14 @@ function RunHistory({ trigger }: { trigger: number }) {
                 {providerSummary(run.providers)}
                 {run.simulatedFailureRequested && (
                   <span
-                    title="Failover-explanation toggle was on for this run — see chat-panel.tsx. Doesn't force a real provider failure; the provider column above is still the real serving provider."
+                    title="Live-failover-demo toggle was on for this run — the primary model was deliberately broken, so the provider/tier shown here is AI Gateway's real fallback model, not the primary."
                     style={{ marginLeft: 6, opacity: 0.7 }}
                   >
                     🔧
                   </span>
                 )}
               </td>
+              <td title={classifierNote(run.providers) ?? ""}>{tierSummary(run.providers)}</td>
               <td>{run.totalTokens.toLocaleString()}</td>
               <td>{formatCost(run.estimatedCostUsd)}</td>
             </tr>
@@ -159,14 +174,14 @@ export function ChatPanel() {
 
       <label
         style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, marginTop: 12 }}
-        title="Doesn't force a real Bedrock outage — there's no safe way to fault-inject just one leg of AI Gateway's order config without risking a hard error on the whole request. Asks the model to narrate the real failover mechanism instead, and badges this run in the audit trail below."
+        title="Deliberately breaks the primary model slug so AI Gateway's real providerOptions.gateway.models fallback list has to serve the response — a live failover, not a narrated one. Check the Provider/Tier columns below after sending to see the fallback model that actually answered."
       >
         <input
           type="checkbox"
           checked={simulateFailover}
           onChange={(e) => setSimulateFailover(e.target.checked)}
         />
-        Explain provider failover in the response (illustrative — see tooltip)
+        Trigger live model failover for this message (see tooltip)
       </label>
 
       <form

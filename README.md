@@ -144,8 +144,23 @@ in one place. `app/api/chat/route.ts` just `start()`s the workflow and
 pipes its stream back to the client. Model calls route through AI Gateway
 with provider-level failover ordering and per-request cost tagging (set
 directly in the workflow's `providerOptions.gateway`) — if the primary
-provider serving Claude degrades, the Gateway routes to the next one in
-`order` with no code change.
+provider serving the selected model degrades, the Gateway routes to the
+next one in `order` with no code change.
+
+**Cost-aware step-up routing.** Before the agent's model is even chosen, a
+durable step (`lib/ai/routing.ts`) classifies the turn with a fast/cheap
+model (`anthropic/claude-haiku-4.5`) — most questions ("what routes exist?",
+"what's the traffic on `/watchlist`?") don't need frontier-model reasoning.
+Only turns asking for a migration recommendation or generated config
+escalate to the frontier model (`anthropic/claude-sonnet-4.5`). This also
+sets `providerOptions.gateway.models` (cross-model fallback, distinct from
+`order`'s same-model provider failover): the fast tier escalates to the
+frontier model if it becomes unavailable rather than losing the request;
+the frontier tier fails over to a different provider entirely
+(`openai/gpt-5.4`). Both the classifier's and the agent's model calls are
+tagged (`tier:fast`/`tier:frontier`) so the AI Gateway dashboard shows
+classifier spend as a near-zero line item relative to agent spend, if
+step-up routing is doing its job.
 
 **Why a Workflow, not a plain Route Handler:** the whole tool-calling loop
 (inventory → strategy → config) used to run inside one Function
@@ -171,16 +186,23 @@ recent-runs table, so "AI Gateway gives Finance/Compliance a spend/trace
 record" (`solution-architecture.md`) is something to click through live
 rather than a claim about a dashboard nobody in the room can see.
 
-There's also an admin-only toggle ("Explain provider failover in the
-response") for narrating the `order` failover mechanism live. It's
-explicitly illustrative, not a real triggered fault — there's no safe way
-to make only the `bedrock` leg of `order` fail without risking a hard 400
-on the whole request (an invalid model/provider combination is a config
-error Gateway rejects outright, not something `order`'s runtime failover
-covers), so it asks the model to narrate the real mechanism in its answer
-instead of gambling a live demo moment on unverified fault injection. Runs
-made with it on are badged (🔧) in the audit table above; the `providers`
-column there is always the real serving provider regardless.
+There's also an admin-only toggle ("Trigger live model failover for this
+message") that forces a *real* failure, not a narrated one: it deliberately
+breaks the primary model slug so `providerOptions.gateway.models` — the
+step-up routing's cross-model fallback list above, not `order` — has to
+serve the response for real. This relies on AI Gateway's documented
+behavior for that option ("fallback model list if primary model
+unavailable") applying to an invalid/nonexistent slug the same way it
+applies to a model that's merely down; `order`'s same-model provider
+failover can't be fault-injected this way (an invalid provider ID there is
+a config error Gateway rejects outright), but `models` is a different
+mechanism and is documented to behave differently. **Not yet verified
+against a live account** — `scripts/verify-gateway-fallback.ts` checks it
+in isolation; run that once AI Gateway billing is set up, before relying on
+the toggle in a live demo. Runs made with it on are badged (🔧) in the
+audit table above; the Provider/Tier columns there show whichever model
+actually served the response, which should be the fallback, not the
+primary, when it's working.
 
 ## Known limitations (what I'd flag before anyone relies on this)
 
@@ -190,7 +212,10 @@ column there is always the real serving provider regardless.
   with a 403 (`customer_verification_required`) that isn't surfaced in the
   chat UI. Add a card under Vercel dashboard → your team → **AI** →
   **Add credit card**. Not something Terraform or application code can
-  route around.
+  route around. This also blocks verifying the live-failover toggle below —
+  the 403 fires before Gateway ever evaluates the model/fallback list, so
+  it can't be distinguished from a real fallback failure without a card on
+  file first.
 - **Cache Components (`next.config.ts`'s `cacheComponents: true`) is
   enabled but only fully adopted on one code path.** Every authenticated
   page reads the session cookie and does a live, per-user DB read — there

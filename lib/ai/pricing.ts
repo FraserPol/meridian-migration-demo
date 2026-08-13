@@ -11,14 +11,25 @@
  * providers (see order: ["bedrock", "anthropic"]) at different prices.
  * Update if Anthropic/AWS Bedrock pricing changes; the fallback rate
  * covers any provider/model combination not listed explicitly.
+ *
+ * Keys must match `step.model.modelId` exactly (dot-separated version, e.g.
+ * "claude-sonnet-4.5" — not "claude-sonnet-4-5"). This table previously used
+ * hyphenated keys that never matched the real modelId, so every lookup
+ * silently fell through to FALLBACK_RATE — fixed here since lib/ai/routing.ts
+ * now depends on this table distinguishing the fast and frontier tiers.
  */
 type PricingKey = `${string}/${string}`;
 
 const FALLBACK_RATE = { inputPerMillion: 3, outputPerMillion: 15 };
 
 const PRICING_USD: Record<PricingKey, { inputPerMillion: number; outputPerMillion: number }> = {
-  "anthropic/claude-sonnet-4-5": { inputPerMillion: 3, outputPerMillion: 15 },
-  "bedrock/claude-sonnet-4-5": { inputPerMillion: 3, outputPerMillion: 15 },
+  "anthropic/claude-sonnet-4.5": { inputPerMillion: 3, outputPerMillion: 15 },
+  "bedrock/claude-sonnet-4.5": { inputPerMillion: 3, outputPerMillion: 15 },
+  // Approximate — confirm against the AI Gateway dashboard's Requests-by-
+  // Model view once live traffic exists; see lib/ai/routing.ts's FAST_MODEL.
+  "anthropic/claude-haiku-4.5": { inputPerMillion: 1, outputPerMillion: 5 },
+  "bedrock/claude-haiku-4.5": { inputPerMillion: 1, outputPerMillion: 5 },
+  "openai/gpt-5.4": { inputPerMillion: 2.5, outputPerMillion: 15 },
 };
 
 export function estimateCostUsd(

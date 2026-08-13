@@ -5,17 +5,52 @@ import type { GatewayProviderOptions } from "@ai-sdk/gateway";
 import { migrationCopilotTools } from "@/lib/ai/tools";
 import { MIGRATION_COPILOT_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { estimateCostUsd } from "@/lib/ai/pricing";
+import {
+  classifyQueryComplexity,
+  FAST_MODEL,
+  FRONTIER_MODEL,
+  FRONTIER_FALLBACK_MODEL,
+  type ModelTier,
+} from "@/lib/ai/routing";
 import { getDb } from "@/lib/db";
-import { migrationCopilotRuns } from "@/lib/db/schema";
+import { migrationCopilotRuns, type CopilotProviderRecord } from "@/lib/db/schema";
 
-const FAILOVER_SIMULATION_NOTE =
-  "Demo note (failover-explanation toggle is on for this message): after " +
-  "answering the question normally, add one short closing sentence " +
-  "explaining that this response was served through Vercel AI Gateway " +
-  "with automatic provider failover configured (order: bedrock, then " +
-  "anthropic for this model) — if the primary provider becomes " +
-  "unavailable, requests route to the next one automatically, with no " +
-  "code change and no re-issued API keys.";
+/**
+ * Deliberately not a real Gateway model slug. Used only when the live-
+ * failover-demo toggle is on (see chat-panel.tsx), to make AI Gateway
+ * actually reject the primary model so providerOptions.gateway.models'
+ * fallback entry has to serve the request for real — not narrated, not
+ * simulated in the prompt. This assumes Gateway's documented behavior
+ * ("fallback model list if primary model unavailable") applies to an
+ * invalid/nonexistent model slug the same way it applies to a model that's
+ * merely down; that's not yet been verified against a live account (see
+ * scripts/verify-gateway-fallback.ts) — run that script once AI Gateway
+ * billing is set up before relying on this toggle live.
+ */
+const SIMULATED_UNAVAILABLE_SUFFIX = "-simulated-unavailable";
+
+function modelForTier(tier: ModelTier): string {
+  return tier === "fast" ? FAST_MODEL : FRONTIER_MODEL;
+}
+
+function fallbackModelsForTier(tier: ModelTier): string[] {
+  // Fast tier escalates to the frontier model if it becomes unavailable —
+  // don't lose the request, just pay more for it. Frontier tier fails over
+  // to a different provider's equivalent model (distinct from
+  // order: ["bedrock", "anthropic"] below, which only fails over between
+  // providers of the *same* model).
+  return tier === "fast" ? [FRONTIER_MODEL] : [FRONTIER_FALLBACK_MODEL];
+}
+
+function extractLatestUserText(messages: ModelMessage[]): string {
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  if (!lastUser) return "";
+  if (typeof lastUser.content === "string") return lastUser.content;
+  return lastUser.content
+    .filter((part): part is { type: "text"; text: string } => part.type === "text")
+    .map((part) => part.text)
+    .join("\n");
+}
 
 /**
  * The Migration Copilot, as a durable Vercel Workflow instead of a plain
@@ -44,14 +79,12 @@ const FAILOVER_SIMULATION_NOTE =
  * argument type, but here it's simpler to pass just the one token string
  * the persistence step's getDb() call actually needs.
  *
- * `simulateFailover`, when true, does NOT force a real provider failure —
- * there's no safe way to make only the "bedrock" leg of `order` fail
- * without risking a hard 400 on the whole request (an invalid model or
- * provider ID is a config error, not something order's runtime failover
- * covers — see the caveat on migrationCopilotRuns.simulatedFailureRequested
- * in lib/db/schema.ts). Instead it asks the model to narrate the real
- * failover mechanism as part of its answer, so it's demoable without any
- * risk of breaking the live request.
+ * `simulateFailover`, when true, forces a real failure of the primary model
+ * (see SIMULATED_UNAVAILABLE_SUFFIX above) so AI Gateway's own
+ * providerOptions.gateway.models fallback has to serve the response — not
+ * narrated, not simulated in the prompt. See the caveat on
+ * SIMULATED_UNAVAILABLE_SUFFIX above about verifying this against a live
+ * Gateway account before relying on it in front of an interviewer.
  */
 export async function migrationCopilotWorkflow(
   messages: ModelMessage[],
@@ -61,11 +94,15 @@ export async function migrationCopilotWorkflow(
 ) {
   "use workflow";
 
+  // Cost-aware step-up routing: classify the turn with the fast/cheap model
+  // before picking which model the main agent runs on (see lib/ai/routing.ts)
+  // — most turns don't need frontier-model reasoning.
+  const classification = await classifyQueryComplexity(extractLatestUserText(messages), userEmail);
+  const selectedModel = modelForTier(classification.tier);
+
   const agent = new DurableAgent({
-    model: "anthropic/claude-sonnet-4.5",
-    instructions: simulateFailover
-      ? `${MIGRATION_COPILOT_SYSTEM_PROMPT}\n\n${FAILOVER_SIMULATION_NOTE}`
-      : MIGRATION_COPILOT_SYSTEM_PROMPT,
+    model: simulateFailover ? `${selectedModel}${SIMULATED_UNAVAILABLE_SUFFIX}` : selectedModel,
+    instructions: MIGRATION_COPILOT_SYSTEM_PROMPT,
     tools: migrationCopilotTools,
   });
 
@@ -83,12 +120,19 @@ export async function migrationCopilotWorkflow(
         // the "provider flexibility and failover" primitive called out
         // in solution-architecture.md Section 4.
         order: ["bedrock", "anthropic"],
+        // Cross-model fallback: if the model above is completely
+        // unavailable (not just its primary provider), Gateway retries
+        // against this list before failing the request. This is also what
+        // makes the live-failover-demo toggle real: when it's on, the
+        // model above is deliberately broken, so this list is what
+        // actually serves the response.
+        models: fallbackModelsForTier(classification.tier),
         // Cost/run attribution: tag every request so Finance can see
         // Migration Copilot spend as its own line item in the AI
         // Gateway observability dashboard, separate from any other AI
         // feature.
         user: userEmail,
-        tags: ["migration-copilot", "admin-tool"],
+        tags: ["migration-copilot", "admin-tool", `tier:${classification.tier}`],
       } satisfies GatewayProviderOptions,
     },
   });
@@ -104,12 +148,25 @@ export async function migrationCopilotWorkflow(
       output: step.toolResults.find((r) => r.toolCallId === call.toolCallId)?.output,
     })),
   );
-  const providers = result.steps.map((step) => ({
-    provider: step.model.provider,
-    modelId: step.model.modelId,
-  }));
-  const inputTokens = result.steps.reduce((sum, step) => sum + (step.usage.inputTokens ?? 0), 0);
-  const outputTokens = result.steps.reduce((sum, step) => sum + (step.usage.outputTokens ?? 0), 0);
+  const providers: CopilotProviderRecord[] = [
+    {
+      provider: "gateway-classifier",
+      modelId: FAST_MODEL,
+      role: "classifier",
+      note: classification.reason,
+    },
+    ...result.steps.map((step) => ({
+      provider: step.model.provider,
+      modelId: step.model.modelId,
+      role: "agent" as const,
+    })),
+  ];
+  const inputTokens =
+    classification.inputTokens +
+    result.steps.reduce((sum, step) => sum + (step.usage.inputTokens ?? 0), 0);
+  const outputTokens =
+    classification.outputTokens +
+    result.steps.reduce((sum, step) => sum + (step.usage.outputTokens ?? 0), 0);
 
   await persistCopilotRun({
     adminEmail: userEmail,
@@ -126,7 +183,7 @@ export async function migrationCopilotWorkflow(
 async function persistCopilotRun(record: {
   adminEmail: string;
   toolCalls: Array<{ name: string; input: unknown; output: unknown }>;
-  providers: Array<{ provider: string; modelId: string }>;
+  providers: CopilotProviderRecord[];
   inputTokens: number;
   outputTokens: number;
   finalResponseText: string;
@@ -142,7 +199,11 @@ async function persistCopilotRun(record: {
     : undefined;
 
   const db = await getDb(headers);
-  const primaryProvider = record.providers[0];
+  // Rate the whole run off the agent's model, not the classifier's — the
+  // classifier is cheap and its tokens are a small fraction of the total,
+  // but pricing the entire run at its rate would understate cost whenever
+  // the agent escalated to the frontier tier.
+  const primaryProvider = record.providers.find((p) => p.role !== "classifier") ?? record.providers[0];
   const estimatedCostUsd = primaryProvider
     ? estimateCostUsd(
         primaryProvider.provider,

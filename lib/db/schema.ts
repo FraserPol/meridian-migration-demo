@@ -70,7 +70,16 @@ export const watchlistItems = pgTable(
 // durable step at the end of the workflow run, not the route handler —
 // see persistCopilotRun in workflows/migration-copilot/workflow.ts.
 export type CopilotToolCallRecord = { name: string; input: unknown; output: unknown };
-export type CopilotProviderRecord = { provider: string; modelId: string };
+// `role` distinguishes the step-up classifier call (lib/ai/routing.ts) from
+// the main agent's own model-call steps — both are recorded here so the
+// classifier's cost/provider is visible in the audit trail too, not just
+// the agent's. `note` carries the classifier's one-line tier justification.
+export type CopilotProviderRecord = {
+  provider: string;
+  modelId: string;
+  role?: "classifier" | "agent";
+  note?: string;
+};
 
 export const migrationCopilotRuns = pgTable("migration_copilot_runs", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -85,13 +94,13 @@ export const migrationCopilotRuns = pgTable("migration_copilot_runs", {
   totalTokens: integer("total_tokens").notNull(),
   estimatedCostUsd: numeric("estimated_cost_usd", { precision: 10, scale: 6 }).notNull(),
   finalResponseText: text("final_response_text").notNull(),
-  // Whether the demo's failover-explanation toggle was on for this run —
-  // see workflows/migration-copilot/workflow.ts. Doesn't force a real
-  // provider failure (not safely fault-injectable from application code
-  // — an invalid model/provider combo returns a hard 400, not a clean
-  // fallback), it's a marker so the UI can badge the run and the actual
-  // `providers` column above stays the honest record of what really
-  // served it.
+  // Whether the live-failover-demo toggle was on for this run — see
+  // workflows/migration-copilot/workflow.ts. When true, the workflow
+  // deliberately breaks the primary model slug so AI Gateway's real
+  // providerOptions.gateway.models fallback list has to serve the request
+  // — the `providers` column above is still the honest record of which
+  // model actually served it, so a run with this flag set should show the
+  // fallback model, not the primary, in that column.
   simulatedFailureRequested: boolean("simulated_failure_requested").notNull().default(false),
 });
 
