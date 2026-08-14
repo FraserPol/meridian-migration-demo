@@ -118,6 +118,10 @@ export async function classifyQueryComplexity(
       }),
       system: CLASSIFIER_INSTRUCTIONS,
       prompt: latestUserText,
+      // A tier + one-sentence reason should never need more than this;
+      // caps runaway spend on the classifier the same way workflow.ts
+      // caps the main agent, rather than trusting the schema alone.
+      maxOutputTokens: 200,
       providerOptions: {
         gateway: {
           user: userEmail,

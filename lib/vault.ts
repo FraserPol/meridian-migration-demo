@@ -31,6 +31,14 @@ type VaultDbCredentials = {
 };
 
 let cached: { creds: VaultDbCredentials; expiresAt: number } | null = null;
+// In-flight fetch, shared by every caller that arrives while it's pending.
+// Without this, N concurrent cold-start requests (cache empty, nothing
+// pending yet) each see a cache miss and independently log in to Vault and
+// mint their own dynamic DB role/credential — N roles minted for what
+// should be one. Caching the promise itself (not just its resolved value)
+// closes that window: the first caller creates it, every other caller
+// awaits the same promise instead of starting a redundant Vault call.
+let pending: Promise<VaultDbCredentials> | null = null;
 
 function buildConnectionString(username: string, password: string): string {
   const host = process.env.PGHOST;
@@ -153,6 +161,18 @@ export async function getDatabaseConnectionString(headers?: Pick<Headers, "get">
   const vaultAddr = process.env.VAULT_ADDR;
 
   if (staticUrl) {
+    if (vaultAddr) {
+      // Both are set: DATABASE_URL silently wins, which means a static
+      // credential can mask a misconfigured or half-migrated Vault setup
+      // in an environment that should be Vault-backed. Not failing closed
+      // here (a demo/local override some environments legitimately want),
+      // but this should never be silent.
+      console.warn(
+        "Both DATABASE_URL and VAULT_ADDR are set — using the static DATABASE_URL " +
+          "and ignoring VAULT_ADDR. If this environment should be Vault-backed, " +
+          "unset DATABASE_URL.",
+      );
+    }
     // Local-dev / demo fallback path — see module comment above.
     return staticUrl;
   }
@@ -169,8 +189,16 @@ export async function getDatabaseConnectionString(headers?: Pick<Headers, "get">
     return cached.creds.connectionString;
   }
 
-  const vaultToken = await loginToVaultWithOidc(vaultAddr, headers);
-  const creds = await readDynamicDbCredentials(vaultAddr, vaultToken);
+  if (!pending) {
+    pending = (async () => {
+      const vaultToken = await loginToVaultWithOidc(vaultAddr, headers);
+      return readDynamicDbCredentials(vaultAddr, vaultToken);
+    })().finally(() => {
+      pending = null;
+    });
+  }
+
+  const creds = await pending;
 
   const ttlMs = (creds.leaseDurationSeconds ?? 300) * 1000 * 0.8;
   cached = { creds, expiresAt: Date.now() + ttlMs };

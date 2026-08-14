@@ -30,6 +30,15 @@ import { migrationCopilotRuns, type CopilotProviderRecord } from "@/lib/db/schem
  */
 const SIMULATED_UNAVAILABLE_SUFFIX = "-simulated-unavailable";
 
+// Hard ceiling on generated tokens per model call. The system prompt asks
+// for concise, admin-to-admin answers, but a prompt instruction isn't a
+// spend guarantee — a misbehaving or adversarial turn (or a model that
+// just ignores the instruction) can otherwise generate unboundedly and
+// undercut the cost-visibility pitch this feature makes to Finance. This
+// caps token spend per step, not per conversation; stopWhen: stepCountIs(8)
+// below is the per-conversation bound.
+const MAX_OUTPUT_TOKENS_PER_STEP = 2000;
+
 function modelForTier(tier: ModelTier): string {
   return tier === "fast" ? FAST_MODEL : FRONTIER_MODEL;
 }
@@ -105,6 +114,7 @@ export async function migrationCopilotWorkflow(
     model: simulateFailover ? `${selectedModel}${SIMULATED_UNAVAILABLE_SUFFIX}` : selectedModel,
     instructions: MIGRATION_COPILOT_SYSTEM_PROMPT,
     tools: migrationCopilotTools,
+    maxOutputTokens: MAX_OUTPUT_TOKENS_PER_STEP,
   });
 
   const result = await agent.stream({

@@ -13,7 +13,40 @@ import { withWorkflow } from "workflow/next";
  * Migration Copilot (see app/admin/migration-copilot) generates this
  * exact shape of config for Meridian's *actual* legacy routes.
  */
+// Baseline security headers for a bank-facing demo. CSP allows 'unsafe-inline'
+// for script/style because Next.js's inline bootstrap/hydration scripts and
+// styled-jsx aren't nonce-wired in this app — a real hardening pass would add
+// a per-request nonce and drop both 'unsafe-inline' entries (see README.md
+// "Known limitations"). script-src/connect-src additionally allowlist
+// Vercel's own domains because Analytics and Speed Insights (app/layout.tsx)
+// load a script from and beacon to them.
+const SECURITY_HEADERS = [
+  {
+    key: "Content-Security-Policy",
+    value: [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "connect-src 'self' https://va.vercel-scripts.com https://vitals.vercel-insights.com",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "object-src 'none'",
+    ].join("; "),
+  },
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload",
+  },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+];
+
 const nextConfig: NextConfig = {
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
   async rewrites() {
     return {
       fallback: [],

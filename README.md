@@ -322,6 +322,13 @@ exist` error) — unrelated to the above, fixed the same day by running
 - **This demo doesn't implement Rolling Releases or a canary rollout** —
   that's a project-level Vercel setting, not application code, and is
   covered in `solution-architecture.md`'s rollout plan instead.
+- **The CSP in `next.config.ts` allows `'unsafe-inline'` for `script-src`/
+  `style-src`.** This app doesn't nonce-wire Next.js's inline bootstrap/
+  hydration scripts or styled-jsx, so a strict CSP would break the app.
+  The headers still cover HSTS, frame-busting, MIME-sniffing, and referrer
+  leakage — real gaps for a bank scenario — but a from-scratch hardening
+  pass would add a per-request nonce and drop both `'unsafe-inline'`
+  entries.
 
 ## Development tooling
 

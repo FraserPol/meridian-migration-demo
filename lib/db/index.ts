@@ -7,6 +7,7 @@ import * as schema from "./schema";
 type Db = PostgresJsDatabase<typeof schema>;
 
 let cachedConnectionString: string | null = null;
+let cachedClient: ReturnType<typeof postgres> | null = null;
 let cachedDb: Db | null = null;
 
 /**
@@ -25,9 +26,22 @@ export async function getDb(headers?: Pick<Headers, "get">): Promise<Db> {
     return cachedDb;
   }
 
+  const oldClient = cachedClient;
+
   const client = postgres(connectionString, { max: 5 });
+  cachedClient = client;
   cachedDb = drizzle(client, { schema });
   cachedConnectionString = connectionString;
+
+  // Vault credential rotation means this fires with a still-live old
+  // client — its pool has open TCP connections that would otherwise leak
+  // for the lifetime of the process. Give in-flight queries a grace
+  // period to finish, then close it; don't await it, rotation shouldn't
+  // block on the old pool draining.
+  if (oldClient) {
+    void oldClient.end({ timeout: 5 });
+  }
+
   return cachedDb;
 }
 
