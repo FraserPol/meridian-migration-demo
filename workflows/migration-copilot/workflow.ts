@@ -184,6 +184,10 @@ export async function migrationCopilotWorkflow(
     providers,
     inputTokens,
     outputTokens,
+    classifierProvider: classification.provider,
+    classifierModelId: classification.modelId,
+    classifierInputTokens: classification.inputTokens,
+    classifierOutputTokens: classification.outputTokens,
     finalResponseText: result.steps.at(-1)?.text ?? "",
     oidcToken,
     simulateFailover,
@@ -196,6 +200,10 @@ async function persistCopilotRun(record: {
   providers: CopilotProviderRecord[];
   inputTokens: number;
   outputTokens: number;
+  classifierProvider: string;
+  classifierModelId: string;
+  classifierInputTokens: number;
+  classifierOutputTokens: number;
   finalResponseText: string;
   oidcToken: string | null;
   simulateFailover: boolean;
@@ -222,6 +230,16 @@ async function persistCopilotRun(record: {
         record.outputTokens,
       )
     : 0;
+  // The classifier's own slice, priced at its own (cheap) rate — see
+  // lib/db/schema.ts's comment on why this is worth breaking out
+  // separately: "is step-up routing worth its own cost" needs this to be
+  // a real query, not an estimate.
+  const classifierCostUsd = estimateCostUsd(
+    record.classifierProvider,
+    record.classifierModelId,
+    record.classifierInputTokens,
+    record.classifierOutputTokens,
+  );
 
   await db.insert(migrationCopilotRuns).values({
     adminEmail: record.adminEmail,
@@ -231,6 +249,9 @@ async function persistCopilotRun(record: {
     outputTokens: record.outputTokens,
     totalTokens: record.inputTokens + record.outputTokens,
     estimatedCostUsd: estimatedCostUsd.toFixed(6),
+    classifierInputTokens: record.classifierInputTokens,
+    classifierOutputTokens: record.classifierOutputTokens,
+    classifierCostUsd: classifierCostUsd.toFixed(6),
     finalResponseText: record.finalResponseText,
     simulatedFailureRequested: record.simulateFailover,
   });

@@ -89,10 +89,27 @@ export const migrationCopilotRuns = pgTable("migration_copilot_runs", {
   toolCalls: jsonb("tool_calls").$type<CopilotToolCallRecord[]>().notNull(),
   // Ordered array of { provider, modelId } — one entry per model-call step.
   providers: jsonb("providers").$type<CopilotProviderRecord[]>().notNull(),
+  // Combined classifier + agent totals, priced at the agent's (usually
+  // pricier) rate — see estimatedCostUsd below for why. Kept as-is for the
+  // existing chat-panel.tsx display; the columns below break the
+  // classifier's own share back out, so "is step-up routing worth its own
+  // cost" (see README.md "Cost-aware step-up routing") can be answered with
+  // a real query instead of an estimate.
   inputTokens: integer("input_tokens").notNull(),
   outputTokens: integer("output_tokens").notNull(),
   totalTokens: integer("total_tokens").notNull(),
   estimatedCostUsd: numeric("estimated_cost_usd", { precision: 10, scale: 6 }).notNull(),
+  // The classifier's own slice of the totals above (lib/ai/routing.ts's
+  // classifyQueryComplexity, always the fast/cheap model), priced at its
+  // own (cheap) rate — unlike estimatedCostUsd, which prices the whole run
+  // at the agent's rate for simplicity. agentCostUsd = estimatedCostUsd -
+  // classifierCostUsd is the fair per-role split. Nullable, not defaulted
+  // to 0: runs written before this column existed genuinely don't have
+  // this breakdown — a 0 default would misrepresent them as "classifier
+  // cost nothing," which isn't true, just untracked.
+  classifierInputTokens: integer("classifier_input_tokens"),
+  classifierOutputTokens: integer("classifier_output_tokens"),
+  classifierCostUsd: numeric("classifier_cost_usd", { precision: 10, scale: 6 }),
   finalResponseText: text("final_response_text").notNull(),
   // Whether the live-failover-demo toggle was on for this run — see
   // workflows/migration-copilot/workflow.ts. When true, the workflow

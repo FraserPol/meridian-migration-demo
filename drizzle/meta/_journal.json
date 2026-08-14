@@ -29,6 +29,13 @@
       "when": 1786713339331,
       "tag": "0003_migration_role_default_privileges",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786714700998,
+      "tag": "0004_classifier_cost_breakdown",
+      "breakpoints": true
     }
   ]
 }

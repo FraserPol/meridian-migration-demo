@@ -91,6 +91,14 @@ const rawLegacyRouteInventory: LegacyRoute[] = [
 export async function getLegacyRouteInventory(): Promise<LegacyRoute[]> {
   "use cache";
   cacheLife("max");
+  // No revalidateTag("legacy-route-inventory") call exists anywhere yet —
+  // deliberately. rawLegacyRouteInventory above is a static, hardcoded
+  // array; nothing in this demo ever mutates it, so there's no event to
+  // hang an invalidation on. This tag is the hook for the real fix once
+  // the inventory becomes an actual CMDB export: a webhook route that
+  // calls revalidateTag("legacy-route-inventory") on each
+  // change-management event, not a fake trigger wired up just to look
+  // dynamic today.
   cacheTag("legacy-route-inventory");
   return rawLegacyRouteInventory;
 }

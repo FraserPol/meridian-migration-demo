@@ -61,6 +61,26 @@ export function recommendMigrationStrategy(route: LegacyRoute): MigrationRecomme
 /**
  * Generates the actual configuration text for a recommendation.
  * Template-based on purpose — see the comment on recommendMigrationStrategy.
+ *
+ * KNOWN FUTURE RISK — unescaped string interpolation: route.route and
+ * route.owner are template-literal'd directly into generated code/config
+ * below with no escaping, at four points: `basePath: "${route.route}"` and
+ * `matcher: ["${route.route}"]` (breaking out of the string injects
+ * executable code into next.config.ts/proxy.ts, files Next.js actually
+ * runs, not just displays); the nginx `location`/`proxy_pass` lines
+ * (injects arbitrary nginx directives if route.route contains `{`, `}`, or
+ * a newline); and the inline `//` comment referencing route.route (a
+ * newline there ends the comment early, turning the rest of the string
+ * into live, uncommented code in the generated file). Safe today only
+ * because getLegacyRouteInventory() is a hardcoded array the developer
+ * wrote — there is no untrusted input reaching these fields. That stops
+ * being true the moment this becomes a real CMDB export: whoever can write
+ * to the CMDB (or tamper with its export pipeline) controls these strings,
+ * and "an admin reviews and merges the generated snippet"
+ * (solution-architecture.md) is a weak safeguard against a route name
+ * crafted to look normal at a glance. Fix then: escape/validate route
+ * fields before interpolation, or generate structured config (e.g. AST/
+ * object construction) instead of string-templating.
  */
 export function generateMigrationSnippet(
   route: LegacyRoute,

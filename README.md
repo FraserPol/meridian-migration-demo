@@ -172,6 +172,26 @@ tagged (`tier:fast`/`tier:frontier`) so the AI Gateway dashboard shows
 classifier spend as a near-zero line item relative to agent spend, if
 step-up routing is doing its job.
 
+**Is it actually worth it? A real number, with a caveat.** The only usage
+this has seen so far is 6 runs from manual testing (2026-08-13): the
+classifier routed 2 of 6 to the fast tier, and re-pricing those two runs'
+actual token counts at the frontier rate instead shows roughly $0.018–$0.020
+saved per fast-tier hit, against a classifier call that costs an estimated
+$0.0003–$0.0006 regardless of outcome. That's a large enough margin that
+this design is hard to make net-negative even at a much lower hit rate — a
+miss only costs one cheap classification call, while a hit saves the gap
+between Haiku and Sonnet pricing (Sonnet output is 15x Haiku's per token).
+But n=6 from one dev session isn't production traffic, so call this a
+**validated pattern, not a proven optimization** until real usage volume
+exists to check it against. `migration_copilot_runs.classifier_input_tokens`
+/ `classifier_output_tokens` / `classifier_cost_usd` (added specifically so
+this becomes a real query instead of an estimate) make that check possible
+once there's enough traffic to trust — the total-run columns alone
+(`input_tokens`/`output_tokens`/`estimated_cost_usd`) don't separate
+classifier spend from agent spend, so verifying this claim before those
+columns existed required estimating the classifier's prompt size by hand,
+not querying it.
+
 **Why a Workflow, not a plain Route Handler:** the whole tool-calling loop
 (inventory → strategy → config) used to run inside one Function
 invocation with nothing persisted server-side — a crash or redeploy
