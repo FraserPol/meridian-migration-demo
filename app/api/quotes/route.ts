@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { getSession, SessionUnavailableError, sessionUnavailableResponse } from "@/lib/session";
 import { computeQuotes, KNOWN_TICKERS } from "@/lib/quotes";
 
 /**
@@ -13,7 +13,13 @@ import { computeQuotes, KNOWN_TICKERS } from "@/lib/quotes";
  * crossing the take-home brief asks for.
  */
 export async function GET(req: NextRequest) {
-  const session = await getSession(req.headers);
+  let session;
+  try {
+    session = await getSession(req.headers);
+  } catch (err) {
+    if (err instanceof SessionUnavailableError) return sessionUnavailableResponse();
+    throw err;
+  }
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

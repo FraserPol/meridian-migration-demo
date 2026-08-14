@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { getSession, SessionUnavailableError, sessionUnavailableResponse } from "@/lib/session";
 import { getLegacyRouteInventory } from "@/lib/legacy-inventory";
 
 /**
@@ -15,7 +15,13 @@ import { getLegacyRouteInventory } from "@/lib/legacy-inventory";
  * lib/legacy-inventory.ts).
  */
 export async function GET(req: Request) {
-  const session = await getSession(req.headers);
+  let session;
+  try {
+    session = await getSession(req.headers);
+  } catch (err) {
+    if (err instanceof SessionUnavailableError) return sessionUnavailableResponse();
+    throw err;
+  }
   if (!session || session.role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

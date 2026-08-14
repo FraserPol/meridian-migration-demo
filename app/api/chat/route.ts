@@ -1,6 +1,6 @@
 import { convertToModelMessages, createUIMessageStreamResponse, type UIMessage } from "ai";
 import { start } from "workflow/api";
-import { getSession } from "@/lib/session";
+import { getSession, SessionUnavailableError, sessionUnavailableResponse } from "@/lib/session";
 import { migrationCopilotWorkflow } from "@/workflows/migration-copilot/workflow";
 
 // Fluid Compute: this route itself returns almost immediately after
@@ -12,7 +12,13 @@ import { migrationCopilotWorkflow } from "@/workflows/migration-copilot/workflow
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  const session = await getSession(req.headers);
+  let session;
+  try {
+    session = await getSession(req.headers);
+  } catch (err) {
+    if (err instanceof SessionUnavailableError) return sessionUnavailableResponse();
+    throw err;
+  }
   if (!session || session.role !== "admin") {
     // The Migration Copilot is scoped to the legacy IT admin persona.
     // Enforced again here (not just in middleware/proxy) because this

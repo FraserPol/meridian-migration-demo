@@ -74,20 +74,53 @@ export async function getSessionFromRequestCookie(
   return verifyToken(token, headers);
 }
 
+/**
+ * Thrown when a session can't be verified because the signing key itself
+ * is unreachable (Vault down, network error) — as opposed to the token
+ * being genuinely invalid. Callers must not treat this the same as "not
+ * signed in": doing so is what turned a Vault outage into "every
+ * signed-in user gets bounced to /login" (see README.md "Known
+ * limitations"). Catch this specifically and show an outage state
+ * instead of discarding a possibly-valid session.
+ */
+export class SessionUnavailableError extends Error {
+  constructor(cause: unknown) {
+    super("Session verification is temporarily unavailable (could not reach the secret store)");
+    this.cause = cause;
+  }
+}
+
+/** Shared 503 body for every JSON route that hits SessionUnavailableError. */
+export function sessionUnavailableResponse(): Response {
+  return Response.json(
+    { error: "Session verification is temporarily unavailable. Please try again shortly." },
+    { status: 503, headers: { "Retry-After": "30" } },
+  );
+}
+
 async function verifyToken(
   token: string,
   headers?: Pick<Headers, "get">,
 ): Promise<SessionPayload | null> {
+  let secretKey: Uint8Array;
   try {
-    const { payload } = await jwtVerify(token, await getSecretKey(headers));
+    secretKey = await getSecretKey(headers);
+  } catch (err) {
+    // getAuthSecret() couldn't reach Vault (or AUTH_SECRET/VAULT_ADDR is
+    // misconfigured) — that's an outage, not a verdict on this token.
+    throw new SessionUnavailableError(err);
+  }
+
+  try {
+    const { payload } = await jwtVerify(token, secretKey);
     return {
       userId: payload.userId as string,
       email: payload.email as string,
       role: payload.role as "customer" | "admin",
     };
   } catch {
-    // Expired or tampered token — treat as logged out rather than throwing,
-    // so a stale cookie doesn't 500 the page.
+    // Expired or tampered token — genuinely logged out, safe to treat as
+    // signed-out rather than throwing.
     return null;
   }
 }

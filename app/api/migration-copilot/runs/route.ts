@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
-import { getSession } from "@/lib/session";
+import { getSession, SessionUnavailableError, sessionUnavailableResponse } from "@/lib/session";
 import { getDb } from "@/lib/db";
 import { migrationCopilotRuns } from "@/lib/db/schema";
 
@@ -15,7 +15,13 @@ import { migrationCopilotRuns } from "@/lib/db/schema";
  * Scoped to the signed-in admin's own runs, most recent first.
  */
 export async function GET(req: Request) {
-  const session = await getSession(req.headers);
+  let session;
+  try {
+    session = await getSession(req.headers);
+  } catch (err) {
+    if (err instanceof SessionUnavailableError) return sessionUnavailableResponse();
+    throw err;
+  }
   if (!session || session.role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

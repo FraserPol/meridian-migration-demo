@@ -322,6 +322,15 @@ exist` error) — unrelated to the above, fixed the same day by running
 - **This demo doesn't implement Rolling Releases or a canary rollout** —
   that's a project-level Vercel setting, not application code, and is
   covered in `solution-architecture.md`'s rollout plan instead.
+- **No connection pooler in front of Postgres, and no connection math done
+  to justify that.** `lib/db/index.ts` opens a direct `postgres` client per
+  warm Function instance (`max: 5`) straight against RDS — fine at demo
+  scale, but there's no RDS Proxy or pgBouncer in front of it, and nobody's
+  worked out `max Function instances × 5` against RDS's actual connection
+  limit. At real concurrency this is how you exhaust Postgres connections
+  during a traffic spike; a pooler (RDS Proxy pairs naturally with the
+  Vault-issued dynamic credentials already in use) is the fix before this
+  goes anywhere near production traffic.
 - **The CSP in `next.config.ts` allows `'unsafe-inline'` for `script-src`/
   `style-src`.** This app doesn't nonce-wire Next.js's inline bootstrap/
   hydration scripts or styled-jsx, so a strict CSP would break the app.

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromRequestCookie, SESSION_COOKIE } from "@/lib/session";
+import { getSessionFromRequestCookie, SessionUnavailableError, SESSION_COOKIE } from "@/lib/session";
 
 // Next.js 16 renamed the `middleware.ts` convention to `proxy.ts` to
 // clarify this file's role as a network-boundary/routing layer. It now
@@ -14,7 +14,23 @@ export const config = {
 
 export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const session = await getSessionFromRequestCookie(token, request.headers);
+
+  let session;
+  try {
+    session = await getSessionFromRequestCookie(token, request.headers);
+  } catch (err) {
+    if (err instanceof SessionUnavailableError) {
+      // Vault is unreachable, so we genuinely don't know if this session
+      // is valid — that's different from "not signed in" and must not be
+      // handled the same way (see lib/session.ts). Say so plainly instead
+      // of silently redirecting a possibly-still-valid session to /login.
+      return new NextResponse(
+        "Session verification is temporarily unavailable. Please try again shortly.",
+        { status: 503, headers: { "Retry-After": "30" } },
+      );
+    }
+    throw err;
+  }
 
   if (!session) {
     const loginUrl = new URL("/login", request.url);
