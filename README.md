@@ -15,7 +15,12 @@ how.
 **Live demo:** https://meridian-migration-demo.vercel.app
 **Repo:** https://github.com/FraserPol/meridian-migration-demo (this repo)
 
-**Deploying this yourself?** Skip ahead to [`PRODUCTION_SETUP.md`](./PRODUCTION_SETUP.md) — explicit, copy-paste commands in order, from Terraform init through the full AWS RDS + HCP Vault production setup.
+**Deploying this yourself?** Two paths, not three — see "Deploying to
+Vercel" below for which one you want:
+[`SETUP_INSTRUCTIONS.md`](./SETUP_INSTRUCTIONS.md) (fast, free Neon
+Postgres, no AWS/HCP account) or
+[`PRODUCTION_SETUP.md`](./PRODUCTION_SETUP.md) (the real thing — Terraform,
+AWS RDS + HCP Vault, dynamic credentials).
 
 ## Demo accounts
 
@@ -77,20 +82,26 @@ app works fine without it.
 
 ## Deploying to Vercel
 
-```bash
-vercel link
-vercel env add AUTH_SECRET production
-# DATABASE_URL should NOT be set in production — see "Two ways to run this" below
-vercel deploy --prod
-```
+Two complete paths — pick one, don't mix steps between them:
 
-Once deployed, AI Gateway authenticates automatically via the project's
-Vercel OIDC token — no `AI_GATEWAY_API_KEY` needed in production, though
-your Vercel team still needs a payment method on file before AI Gateway
-will serve requests at all, even free-tier ones — see Known Limitations.
+- **Fast, public URL, no AWS/HCP account needed:**
+  [`SETUP_INSTRUCTIONS.md`](./SETUP_INSTRUCTIONS.md) — free Neon Postgres,
+  `vercel deploy --prod` by hand. `DATABASE_URL` stays set for production;
+  that's the intended, correct state for this path (see "Two ways to run
+  this app" below).
+- **The real thing:** [`PRODUCTION_SETUP.md`](./PRODUCTION_SETUP.md) — the
+  architecture `solution-architecture.md` actually describes: Terraform,
+  AWS RDS + HCP Vault, dynamic credentials. `DATABASE_URL` gets explicitly
+  unset once Vault takes over (Step 8) — also the intended, correct state
+  for this path, and the opposite of the fast path above. If you're
+  seeing a `DATABASE_URL`/`VAULT_ADDR` collision, it's because these two
+  paths got mixed; pick one and follow it start to finish.
 
-For the full production path (real AWS RDS + HCP Vault instead of the
-`DATABASE_URL` fallback), see [`PRODUCTION_SETUP.md`](./PRODUCTION_SETUP.md).
+Either way, once deployed, AI Gateway authenticates automatically via the
+project's Vercel OIDC token — no `AI_GATEWAY_API_KEY` needed in
+production, though your Vercel team still needs a payment method on file
+before AI Gateway will serve requests at all, even free-tier ones — see
+Known Limitations.
 
 **Observability out of the box.** `@vercel/analytics` and
 `@vercel/speed-insights` are both wired into `app/layout.tsx` — page views
@@ -232,47 +243,16 @@ Runs made with the toggle on are badged (🔧) in the audit table above; the
 Provider/Tier columns there show whichever model actually served the
 response — the fallback, not the primary.
 
-Verifying this also surfaced a second, unrelated bug: `StepResult.model`
-(`step.model.provider`/`.modelId`, what the audit trail originally read)
-is captured from the *requested* model config before the call happens —
-for any Gateway-routed model it's always the literal string `"gateway"`
-and the full requested slug, never what Gateway's `order`/`models` routing
-actually served the request with. That means the audit trail's "which
-provider served this" column, and every cost estimate keyed off it, were
-silently wrong from the moment this feature was built — not just for the
-failover toggle, but for ordinary `order: ["bedrock", "anthropic"]`
-failover too. The real answer only exists in
-`providerMetadata.gateway.routing` (`finalProvider` + `canonicalSlug`)
-after the call completes; `servedModel()` in `lib/ai/routing.ts` reads
-that instead, and the workflow and this verification script both use it
-now.
-
-**A third, more serious bug: the Migration Copilot didn't actually work in
-production at all, until 2026-08-13.** Every real chat message crashed the
-underlying Workflow run with `Cannot find module '.../.well-known/workflow
-/v1/flow/route.js'`, then `Error: VERCEL_DEPLOYMENT_ID environment variable
-is not set`, and the workflow runtime tried (and failed — the path is
-read-only) to write local run-state files under `/var/task/.workflow-data`
-— local-dev filesystem persistence, running inside a deployed Function.
-Root cause: this Vercel project's `automatically_expose_system_environment_
-variables` setting was `false` (confirmed via the Vercel API), so
-`VERCEL_ENV`/`VERCEL_DEPLOYMENT_ID`/etc. were never populated into
-`process.env` at runtime — and `@workflow/next`'s Vercel-vs-local detection
-(`node_modules/@workflow/next/dist/index.js`) keys off exactly
-`VERCEL_DEPLOYMENT_ID`. Since this project was created by
-`infra/terraform/modules/vercel-project` (see `PRODUCTION_SETUP.md`), and
-its `vercel_project` resource never set that attribute, the Vercel provider's
-default (`false`) applied. Fixed in two places: flipped to `true` directly
-via the Vercel API for the live project, and added
-`automatically_expose_system_environment_variables = true` to the Terraform
-resource so re-provisioning (or a fresh `terraform apply` elsewhere) doesn't
-reintroduce it. Verified end-to-end afterward: a real login + chat message
-against the deployed app now completes, and `npx workflow inspect runs
---backend vercel` shows real, completed runs. Separately, the
-`migration_copilot_runs` table had also never been migrated into the real
-production RDS database (a `relation "migration_copilot_runs" does not
-exist` error) — unrelated to the above, fixed the same day by running
-`npm run db:migrate` against production per `PRODUCTION_SETUP.md` Step 7.
+Two real production bugs surfaced and got fixed along the way: the audit
+trail's "which provider served this" column was silently wrong from the
+moment the feature was built (it read the *requested* model, not the one
+Gateway actually routed to), and the Migration Copilot didn't work in
+production at all until 2026-08-13 (a Terraform-provisioned Vercel project
+setting defaulted to `false`, crashing every real chat message on a
+read-only-filesystem write). Full write-up of both, including root cause
+and how each was found, in [`NOTES.md`](./NOTES.md); the second one's
+symptoms and fix are also in `PRODUCTION_SETUP.md`'s Troubleshooting
+section.
 
 ## Known limitations (what I'd flag before anyone relies on this)
 
@@ -300,7 +280,7 @@ exist` error) — unrelated to the above, fixed the same day by running
   cache"` + `cacheLife("max")` for real, since in production that's a
   CMDB export that changes on a change-management cadence, not per
   request. `/login` needed no changes: it was already a static shell.
-- **`ai` is pinned to `6.0.252`, not the `7.x` this project ran earlier.**
+- **`ai` is pinned to `6.0.253`, not the `7.x` this project ran earlier.**
   An earlier iteration upgraded to `ai@7` specifically for `ToolLoopAgent`
   + `createAgentUIStreamResponse`. Adopting Vercel Workflow's `DurableAgent`
   for real durability (see above) forced a downgrade back to `ai@6` —

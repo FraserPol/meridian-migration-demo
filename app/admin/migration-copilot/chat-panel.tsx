@@ -106,8 +106,14 @@ function RunHistory({ trigger }: { trigger: number }) {
 
 export function ChatPanel() {
   // Typed via MigrationCopilotUIMessage (inferred from the DurableAgent in
-  // workflows/migration-copilot/workflow.ts) so each tool-* message part
-  // below is known at compile time instead of cast through `unknown`.
+  // workflows/migration-copilot/workflow.ts), so message.parts is a real
+  // discriminated union, not `unknown[]`. The `as unknown as {...}` cast
+  // below is still needed anyway: `part.type.startsWith("tool-")` renders
+  // every tool uniformly without switching on each tool's literal type
+  // name, and TypeScript can't narrow a union on `.startsWith()` — only on
+  // `===`. Switching on each `tool-<name>` literal would get real
+  // per-tool narrowing from this type instead, at the cost of one case
+  // per tool.
   const { messages, sendMessage, status, error } = useChat<MigrationCopilotUIMessage>({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   });

@@ -209,12 +209,14 @@ by `vercel link`/`vercel new` — so this checkout has no local
 Link it once, from `meridian-migration-demo/` (this directory):
 
 ```bash
-vercel link --yes --project meridian-migration-demo --scope fraserpols-projects
+vercel link --yes --project meridian-migration-demo --scope <your-vercel-team-slug>
 ```
 
 Use your own `vercel_project_name`/`vercel_team_slug` from `terraform.tfvars`
-if they differ. Without this, `vercel env rm` (and Step 9's `vercel deploy`)
-fail with `Your codebase isn't linked to a project on Vercel`.
+— `meridian-migration-demo` and `<your-vercel-team-slug>` above are only
+this repo's own defaults. Without this, `vercel env rm` (and Step 9's
+`vercel deploy`) fail with `Your codebase isn't linked to a project on
+Vercel`.
 
 ```bash
 vercel env rm DATABASE_URL production

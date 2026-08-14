@@ -96,10 +96,11 @@ why this was easy to miss by hand-review alone — see
   reaching Vault/RDS over the public internet instead — see
   `PRODUCTION_SETUP.md`'s Step 6 for the full workaround and why it's
   demo-only, not a production recommendation.
-- **HCP Vault cluster tier for production.** `terraform.tfvars.example`
-  defaults to `dev_small` to keep this cheap to try. Bump `vault_tier` to
-  at least `plus_small` before pointing this at a real Staging
-  environment — `dev_small` clusters are not intended to hold anything
+- **HCP Vault cluster tier for production.** `vault_tier` (unset in
+  `terraform.tfvars.example`, so it falls through to
+  `modules/hcp-vault/variables.tf`'s default) is `dev` to keep this cheap
+  to try. Bump it to at least `plus_small` before pointing this at a real
+  Staging environment — `dev` clusters are not intended to hold anything
   that matters.
 - **RDS credential rotation for the master password.** Vault's database
   secrets engine issues short-lived *application* credentials fine; the
