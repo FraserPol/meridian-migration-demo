@@ -1,12 +1,30 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { getSession, SessionUnavailableError } from "@/lib/session";
 
-// Reads the session cookie to decide where to redirect — inherently
-// request-time, not a candidate for a static shell. See next.config.ts.
+// `instant = false` only opts this route out of client-side instant-
+// navigation prefetch validation — it does NOT stop the page from being
+// statically prerendered. Without the Suspense boundary below, this
+// page's *only* output is an unconditional redirect(), which Next.js's
+// build treats as a legitimately cacheable static outcome: it prerenders
+// the no-session build-time result ("redirect to /login") once and serves
+// that identical shell to every visitor afterward, signed in or not —
+// confirmed live: a real, valid session cookie still got the cached
+// anonymous redirect. Wrapping the session check in <Suspense> forces
+// Next.js to treat it as a genuine per-request dynamic hole instead of
+// something it can resolve once at build time. See next.config.ts.
 export const instant = false;
 
-export default async function HomePage() {
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <RouteBySession />
+    </Suspense>
+  );
+}
+
+async function RouteBySession() {
   let session;
   try {
     session = await getSession(await headers());

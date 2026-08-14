@@ -371,6 +371,24 @@ rather than a one-time manual check (`npm run test:eval`; needs
 `AI_GATEWAY_API_KEY` set as a repo secret — skips gracefully, not a CI
 failure, if it isn't).
 
+**Skills-assisted review pass:** a later pass installed and applied a set
+of Claude Code skills — `next-best-practices`, `vercel-react-best-practices`,
+`vercel-composition-patterns`, `next-cache-components`, `web-design-guidelines`,
+`workflow`, `ai-sdk`, and `terraform-skill` — against the whole repo, checking
+it against each area's own documented best practices instead of ad hoc
+reading. That surfaced and fixed real gaps: `SessionUnavailableError`
+handling that covered some Server Components/Actions but not others
+(`lib/vault.ts`'s `VaultUnavailableError` now covers both the session-key
+and DB-credential paths, consistently), two accessibility gaps (form
+errors with no `aria-live` announcement, a per-row "Remove" button with
+no accessible name distinguishing which ticker it targets), and — found
+only by testing the fix live with a real authenticated session rather
+than trusting HTTP status codes — a caching bug where `/` served a
+build-time-baked "redirect to /login" to every visitor regardless of
+session. Fixed by wrapping the redirect logic in a `<Suspense>` boundary
+so Cache Components treats it as a genuine per-request dynamic hole
+instead of a statically cacheable outcome (see `app/page.tsx`).
+
 **On the commit history:** the first 9 commits share identical timestamps
 (~11K additions landing as one batch). That's the initial scaffold from
 one agent session, committed as a single unit rather than split into a
