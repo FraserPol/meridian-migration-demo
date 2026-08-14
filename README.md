@@ -103,12 +103,17 @@ production, though your Vercel team still needs a payment method on file
 before AI Gateway will serve requests at all, even free-tier ones — see
 Known Limitations.
 
-**Observability out of the box.** `@vercel/analytics` and
-`@vercel/speed-insights` are both wired into `app/layout.tsx` — page views
-and Core Web Vitals start showing up under the project's **Analytics** and
-**Speed Insights** dashboard tabs once real traffic hits the deployment, no
-further setup needed. This is separate from the Migration Copilot's own
-AI Gateway spend/audit tracking described below.
+**Frontend observability out of the box — backend is a separate story.**
+`@vercel/analytics` and `@vercel/speed-insights` are both wired into
+`app/layout.tsx` — page views and Core Web Vitals start showing up under
+the project's **Analytics** and **Speed Insights** dashboard tabs once
+real traffic hits the deployment, no further setup needed. That's RUM
+(real-user monitoring), not backend error tracking: a Server Action or
+API route crash today only reaches `app/error.tsx`/`global-error.tsx`
+(both just `console.error` — no Sentry/Datadog/Log Drain is wired up, see
+Known Limitations) and Vercel's own raw Function logs, not any alerting
+or dashboard this project set up. This is separate from the Migration
+Copilot's own AI Gateway spend/audit tracking described below.
 
 ## Two ways to run this app, on purpose
 
@@ -338,6 +343,15 @@ section.
   leakage — real gaps for a bank scenario — but a from-scratch hardening
   pass would add a per-request nonce and drop both `'unsafe-inline'`
   entries.
+- **No real backend observability.** `app/error.tsx`/`global-error.tsx`
+  catch uncaught errors and give the user a real page instead of Next.js's
+  bare default fallback, but both just `console.error` — nothing forwards
+  server-side errors anywhere a team would actually see them. No Sentry,
+  no Datadog, no Vercel Log Drain. For a bank scenario this is a real gap,
+  not a placeholder: it needs an external service decision (which
+  provider, what alerting policy, what's PII-safe to send off-platform)
+  that's genuinely out of scope for a demo repo, not just an unwired hook
+  like `cacheTag` above.
 
 ## Development tooling
 
@@ -356,3 +370,12 @@ before strategy, strategy before config) the system prompt requires,
 rather than a one-time manual check (`npm run test:eval`; needs
 `AI_GATEWAY_API_KEY` set as a repo secret — skips gracefully, not a CI
 failure, if it isn't).
+
+**On the commit history:** the first 9 commits share identical timestamps
+(~11K additions landing as one batch). That's the initial scaffold from
+one agent session, committed as a single unit rather than split into a
+fabricated-looking sequence of "incremental" commits that didn't actually
+happen incrementally. The real evolution — the part worth reading — is in
+the fix-heavy commits from day two onward: real bugs, found and fixed one
+at a time (see `NOTES.md` and the Known Limitations above for the
+detailed version of several of them).
