@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
-import { getSession, SessionUnavailableError, sessionUnavailableResponse } from "@/lib/session";
+import { getSession, VaultUnavailableError, sessionUnavailableResponse } from "@/lib/session";
 import { getDb } from "@/lib/db";
 import { migrationCopilotRuns } from "@/lib/db/schema";
 
@@ -15,24 +15,27 @@ import { migrationCopilotRuns } from "@/lib/db/schema";
  * Scoped to the signed-in admin's own runs, most recent first.
  */
 export async function GET(req: Request) {
-  let session;
   try {
-    session = await getSession(req.headers);
+    const session = await getSession(req.headers);
+    if (!session || session.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // getDb() mints its own dynamic Vault credential (a separate call from
+    // getSession()'s), so it's a distinct outage surface — inside the same
+    // try block rather than a call after it, or a Vault blip here would
+    // throw uncaught instead of hitting the catch below.
+    const db = await getDb(req.headers);
+    const runs = await db
+      .select()
+      .from(migrationCopilotRuns)
+      .where(eq(migrationCopilotRuns.adminEmail, session.email))
+      .orderBy(desc(migrationCopilotRuns.createdAt))
+      .limit(5);
+
+    return NextResponse.json({ runs });
   } catch (err) {
-    if (err instanceof SessionUnavailableError) return sessionUnavailableResponse();
+    if (err instanceof VaultUnavailableError) return sessionUnavailableResponse();
     throw err;
   }
-  if (!session || session.role !== "admin") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const db = await getDb(req.headers);
-  const runs = await db
-    .select()
-    .from(migrationCopilotRuns)
-    .where(eq(migrationCopilotRuns.adminEmail, session.email))
-    .orderBy(desc(migrationCopilotRuns.createdAt))
-    .limit(5);
-
-  return NextResponse.json({ runs });
 }

@@ -33,9 +33,17 @@ export function ProfileForm({ profile }: { profile?: Profile }) {
         <option value="aggressive">Aggressive</option>
       </select>
 
-      {state?.error && <div className="error-banner">{state.error}</div>}
+      {state?.error && (
+        <div className="error-banner" role="alert">
+          {state.error}
+        </div>
+      )}
       {state?.success && (
-        <div className="error-banner" style={{ color: "var(--green)", borderColor: "rgba(34,197,94,0.4)", background: "rgba(34,197,94,0.1)" }}>
+        <div
+          className="error-banner"
+          role="status"
+          style={{ color: "var(--green)", borderColor: "rgba(34,197,94,0.4)", background: "rgba(34,197,94,0.1)" }}
+        >
           Saved.
         </div>
       )}

@@ -30,6 +30,24 @@ type VaultDbCredentials = {
   leaseDurationSeconds: number | null;
 };
 
+/**
+ * Thrown when a Vault-backed secret (a dynamic DB credential or the
+ * session-signing key) can't be resolved because Vault itself is
+ * unreachable — as opposed to the credential/session being genuinely
+ * invalid or absent. Callers must not treat this the same as "not found"
+ * / "not signed in": it means we don't actually know the answer, and
+ * should say so instead of guessing. lib/session.ts's
+ * SessionUnavailableError is a subclass of this for the
+ * session-verification path specifically; getDatabaseConnectionString
+ * below throws this directly for the DB-credential path.
+ */
+export class VaultUnavailableError extends Error {
+  constructor(message: string, cause: unknown) {
+    super(message);
+    this.cause = cause;
+  }
+}
+
 let cached: { creds: VaultDbCredentials; expiresAt: number } | null = null;
 // In-flight fetch, shared by every caller that arrives while it's pending.
 // Without this, N concurrent cold-start requests (cache empty, nothing
@@ -191,8 +209,20 @@ export async function getDatabaseConnectionString(headers?: Pick<Headers, "get">
 
   if (!pending) {
     pending = (async () => {
-      const vaultToken = await loginToVaultWithOidc(vaultAddr, headers);
-      return readDynamicDbCredentials(vaultAddr, vaultToken);
+      try {
+        const vaultToken = await loginToVaultWithOidc(vaultAddr, headers);
+        return await readDynamicDbCredentials(vaultAddr, vaultToken);
+      } catch (err) {
+        // Distinguishes "Vault is down" from a genuinely missing/invalid
+        // credential — see VaultUnavailableError above. Without this, a
+        // Vault outage on the DB-credential path surfaced as a raw fetch
+        // error with no consistent way for callers to show a "temporarily
+        // unavailable" state instead of crashing.
+        throw new VaultUnavailableError(
+          "Database credentials are temporarily unavailable (could not reach Vault).",
+          err,
+        );
+      }
     })().finally(() => {
       pending = null;
     });
@@ -247,22 +277,34 @@ export async function getAuthSecret(headers?: Pick<Headers, "get">): Promise<str
     );
   }
 
-  const vaultToken = await loginToVaultWithOidc(vaultAddr, headers);
+  try {
+    const vaultToken = await loginToVaultWithOidc(vaultAddr, headers);
 
-  const res = await fetch(`${vaultAddr}/v1/${kvPath}`, {
-    headers: { "X-Vault-Token": vaultToken, ...vaultNamespaceHeaders() },
-  });
+    const res = await fetch(`${vaultAddr}/v1/${kvPath}`, {
+      headers: { "X-Vault-Token": vaultToken, ...vaultNamespaceHeaders() },
+    });
 
-  if (!res.ok) {
-    throw new Error(`Vault KV app-config read failed: ${res.status} ${await res.text()}`);
+    if (!res.ok) {
+      throw new Error(`Vault KV app-config read failed: ${res.status} ${await res.text()}`);
+    }
+
+    const body = (await res.json()) as { data?: { data?: Record<string, string> } };
+    const secret = body.data?.data?.AUTH_SECRET;
+    if (!secret) {
+      throw new Error("Vault KV app-config secret is missing an AUTH_SECRET key");
+    }
+
+    cachedAuthSecret = secret;
+    return secret;
+  } catch (err) {
+    // lib/session.ts's verifyToken() already wraps any getSecretKey()
+    // failure into SessionUnavailableError, but createSession() (the
+    // login path) calls getSecretKey() directly — it needs a typed error
+    // straight from here too, or a Vault blip during login throws
+    // uncaught instead of returning a graceful "try again shortly" state.
+    throw new VaultUnavailableError(
+      "The session-signing secret is temporarily unavailable (could not reach Vault).",
+      err,
+    );
   }
-
-  const body = (await res.json()) as { data?: { data?: Record<string, string> } };
-  const secret = body.data?.data?.AUTH_SECRET;
-  if (!secret) {
-    throw new Error("Vault KV app-config secret is missing an AUTH_SECRET key");
-  }
-
-  cachedAuthSecret = secret;
-  return secret;
 }

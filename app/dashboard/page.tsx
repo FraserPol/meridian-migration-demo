@@ -1,25 +1,38 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
-import { getSession } from "@/lib/session";
+import { getSession, VaultUnavailableError, VAULT_UNAVAILABLE_MESSAGE } from "@/lib/session";
 import { getDb } from "@/lib/db";
-import { profiles, watchlistItems } from "@/lib/db/schema";
+import { profiles, watchlistItems, type Profile, type WatchlistItem } from "@/lib/db/schema";
 
 // Reads the session cookie and does a live, per-user DB read — request-time
 // by design. See next.config.ts.
 export const instant = false;
 
 export default async function DashboardPage() {
-  const hdrs = await headers();
-  const session = await getSession(hdrs);
-  const db = await getDb(hdrs);
+  let profile: Profile | undefined;
+  let items: WatchlistItem[];
+  try {
+    const hdrs = await headers();
+    const session = await getSession(hdrs);
+    const db = await getDb(hdrs);
 
-  // Independent queries — run in parallel rather than sequentially
-  // awaited, so the page isn't waiting on two round trips back to back.
-  const [[profile], items] = await Promise.all([
-    db.select().from(profiles).where(eq(profiles.userId, session!.userId)).limit(1),
-    db.select().from(watchlistItems).where(eq(watchlistItems.userId, session!.userId)),
-  ]);
+    // Independent queries — run in parallel rather than sequentially
+    // awaited, so the page isn't waiting on two round trips back to back.
+    [[profile], items] = await Promise.all([
+      db.select().from(profiles).where(eq(profiles.userId, session!.userId)).limit(1),
+      db.select().from(watchlistItems).where(eq(watchlistItems.userId, session!.userId)),
+    ]);
+  } catch (err) {
+    if (err instanceof VaultUnavailableError) {
+      // getSession()/getDb() each mint their own Vault credential,
+      // independently of dashboard/layout.tsx's own getSession() call — a
+      // Vault blip here needs the same graceful handling, not a crash to
+      // the generic error boundary (see lib/session.ts).
+      return <p>{VAULT_UNAVAILABLE_MESSAGE}</p>;
+    }
+    throw err;
+  }
 
   return (
     <>

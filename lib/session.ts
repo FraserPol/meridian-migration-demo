@@ -7,7 +7,7 @@
  */
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import { getAuthSecret } from "@/lib/vault";
+import { getAuthSecret, VaultUnavailableError } from "@/lib/vault";
 
 const SESSION_COOKIE = "meridian_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 8; // 8 hours
@@ -83,10 +83,9 @@ export async function getSessionFromRequestCookie(
  * limitations"). Catch this specifically and show an outage state
  * instead of discarding a possibly-valid session.
  */
-export class SessionUnavailableError extends Error {
+export class SessionUnavailableError extends VaultUnavailableError {
   constructor(cause: unknown) {
-    super("Session verification is temporarily unavailable (could not reach the secret store)");
-    this.cause = cause;
+    super("Session verification is temporarily unavailable (could not reach the secret store)", cause);
   }
 }
 
@@ -97,6 +96,14 @@ export function sessionUnavailableResponse(): Response {
     { status: 503, headers: { "Retry-After": "30" } },
   );
 }
+
+/**
+ * Shared copy for Server Components/Actions that hit a VaultUnavailableError
+ * (session verification OR DB-credential minting — both mean the same thing
+ * to a caller: Vault couldn't be reached) and aren't a JSON API route, so
+ * sessionUnavailableResponse() above doesn't apply.
+ */
+export const VAULT_UNAVAILABLE_MESSAGE = "Temporarily unavailable — please try again shortly.";
 
 async function verifyToken(
   token: string,
@@ -126,3 +133,7 @@ async function verifyToken(
 }
 
 export { SESSION_COOKIE };
+// Re-exported so pages/actions that call both getSession() and getDb() can
+// catch outages from either path with one `instanceof VaultUnavailableError`
+// check, importing everything from "@/lib/session" rather than two modules.
+export { VaultUnavailableError };

@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { getSession, destroySession } from "@/lib/session";
+import {
+  getSession,
+  destroySession,
+  VaultUnavailableError,
+  VAULT_UNAVAILABLE_MESSAGE,
+} from "@/lib/session";
 
 // Reads the session cookie to gate the whole dashboard — request-time by
 // design. See next.config.ts.
@@ -14,7 +19,23 @@ async function signOutAction() {
 }
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession(await headers());
+  let session;
+  try {
+    session = await getSession(await headers());
+  } catch (err) {
+    if (err instanceof VaultUnavailableError) {
+      // Not covered by proxy.ts's own catch of the same error class — this
+      // layout re-verifies the session independently, so it needs to
+      // handle a Vault outage in that window too rather than crashing to
+      // the generic error boundary (see lib/session.ts).
+      return (
+        <main className="page">
+          <p>{VAULT_UNAVAILABLE_MESSAGE}</p>
+        </main>
+      );
+    }
+    throw err;
+  }
   if (!session) redirect("/login");
 
   return (

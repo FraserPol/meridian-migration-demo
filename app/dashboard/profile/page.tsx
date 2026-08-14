@@ -1,8 +1,8 @@
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
-import { getSession } from "@/lib/session";
+import { getSession, VaultUnavailableError, VAULT_UNAVAILABLE_MESSAGE } from "@/lib/session";
 import { getDb } from "@/lib/db";
-import { profiles } from "@/lib/db/schema";
+import { profiles, type Profile } from "@/lib/db/schema";
 import { ProfileForm } from "./profile-form";
 
 // Reads the session cookie and a live per-user DB read — request-time by
@@ -10,15 +10,27 @@ import { ProfileForm } from "./profile-form";
 export const instant = false;
 
 export default async function ProfilePage() {
-  const hdrs = await headers();
-  const session = await getSession(hdrs);
-  const db = await getDb(hdrs);
+  let profile: Profile | undefined;
+  try {
+    const hdrs = await headers();
+    const session = await getSession(hdrs);
+    const db = await getDb(hdrs);
 
-  const [profile] = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.userId, session!.userId))
-    .limit(1);
+    [profile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.userId, session!.userId))
+      .limit(1);
+  } catch (err) {
+    if (err instanceof VaultUnavailableError) {
+      // getSession()/getDb() each mint their own Vault credential,
+      // independently of dashboard/layout.tsx's own getSession() call — a
+      // Vault blip here needs the same graceful handling, not a crash to
+      // the generic error boundary (see lib/session.ts).
+      return <p>{VAULT_UNAVAILABLE_MESSAGE}</p>;
+    }
+    throw err;
+  }
 
   return (
     <>

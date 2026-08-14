@@ -27,7 +27,11 @@ export default function LoginPage() {
             required
           />
 
-          {state?.error && <div className="error-banner">{state.error}</div>}
+          {state?.error && (
+            <div className="error-banner" role="alert">
+              {state.error}
+            </div>
+          )}
 
           <div style={{ marginTop: 20 }}>
             <button type="submit" disabled={pending}>

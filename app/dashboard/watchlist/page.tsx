@@ -1,8 +1,8 @@
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
-import { getSession } from "@/lib/session";
+import { getSession, VaultUnavailableError, VAULT_UNAVAILABLE_MESSAGE } from "@/lib/session";
 import { getDb } from "@/lib/db";
-import { watchlistItems } from "@/lib/db/schema";
+import { watchlistItems, type WatchlistItem } from "@/lib/db/schema";
 import { computeQuotes } from "@/lib/quotes";
 import { AddTickerForm } from "./add-ticker-form";
 import { RemoveTickerButton } from "./remove-ticker-button";
@@ -13,14 +13,26 @@ import { RefreshQuotesButton } from "./refresh-quotes-button";
 export const instant = false;
 
 export default async function WatchlistPage() {
-  const hdrs = await headers();
-  const session = await getSession(hdrs);
-  const db = await getDb(hdrs);
+  let items: WatchlistItem[];
+  try {
+    const hdrs = await headers();
+    const session = await getSession(hdrs);
+    const db = await getDb(hdrs);
 
-  const items = await db
-    .select()
-    .from(watchlistItems)
-    .where(eq(watchlistItems.userId, session!.userId));
+    items = await db
+      .select()
+      .from(watchlistItems)
+      .where(eq(watchlistItems.userId, session!.userId));
+  } catch (err) {
+    if (err instanceof VaultUnavailableError) {
+      // getSession()/getDb() each mint their own Vault credential,
+      // independently of dashboard/layout.tsx's own getSession() call — a
+      // Vault blip here needs the same graceful handling, not a crash to
+      // the generic error boundary (see lib/session.ts).
+      return <p>{VAULT_UNAVAILABLE_MESSAGE}</p>;
+    }
+    throw err;
+  }
 
   const quotes = computeQuotes(items.map((i) => i.ticker));
   const quoteByTicker = new Map(quotes.map((q) => [q.ticker, q]));
@@ -66,7 +78,7 @@ export default async function WatchlistPage() {
                     </td>
                     <td>{item.addedAtPrice ? `$${item.addedAtPrice}` : "—"}</td>
                     <td>
-                      <RemoveTickerButton itemId={item.id} />
+                      <RemoveTickerButton itemId={item.id} ticker={item.ticker} />
                     </td>
                   </tr>
                 );

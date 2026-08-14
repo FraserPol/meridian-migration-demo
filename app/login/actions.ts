@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { createSession } from "@/lib/session";
+import { createSession, VaultUnavailableError, VAULT_UNAVAILABLE_MESSAGE } from "@/lib/session";
 import { verifyPassword } from "@/lib/password";
 
 export type LoginState = { error?: string } | undefined;
@@ -21,13 +21,25 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
   }
 
   const hdrs = await headers();
-  const db = await getDb(hdrs);
-  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+
+  let user;
+  try {
+    const db = await getDb(hdrs);
+    [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  } catch (err) {
+    if (err instanceof VaultUnavailableError) return { error: VAULT_UNAVAILABLE_MESSAGE };
+    throw err;
+  }
 
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     return { error: "Invalid email or password." };
   }
 
-  await createSession({ userId: user.id, email: user.email, role: user.role }, hdrs);
+  try {
+    await createSession({ userId: user.id, email: user.email, role: user.role }, hdrs);
+  } catch (err) {
+    if (err instanceof VaultUnavailableError) return { error: VAULT_UNAVAILABLE_MESSAGE };
+    throw err;
+  }
   redirect(user.role === "admin" ? "/admin/migration-copilot" : "/dashboard");
 }

@@ -15,7 +15,11 @@ export function AddTickerForm() {
       <button type="submit" disabled={pending} style={{ marginTop: 14 }}>
         {pending ? "Adding..." : "Add"}
       </button>
-      {state?.error && <div className="error-banner">{state.error}</div>}
+      {state?.error && (
+        <div className="error-banner" role="alert">
+          {state.error}
+        </div>
+      )}
     </form>
   );
 }
