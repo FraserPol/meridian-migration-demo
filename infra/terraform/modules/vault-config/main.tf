@@ -92,9 +92,17 @@ resource "vault_database_secret_backend_role" "app" {
   db_name     = vault_database_secret_backend_connection.rds.name
   default_ttl = 300 # 5 minutes — see lib/vault.ts credential caching
   max_ttl     = 3600
+  # Every credential mint joins meridian_app_readwrite rather than being
+  # granted table privileges directly. That static role's privileges (see
+  # drizzle/0003_migration_role_default_privileges.sql) are set once via
+  # ALTER DEFAULT PRIVILEGES and then apply automatically to every table any
+  # future migration creates — a direct "GRANT ... ON ALL TABLES" here would
+  # only ever cover tables that existed at this exact mint, leaving newer
+  # tables invisible to an already-minted, still-cached credential (see
+  # lib/vault.ts) until it naturally rotates. See the migration file for the
+  # full story on the bug this replaced.
   creation_statements = [
-    "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';",
-    "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\";",
+    "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}' IN ROLE meridian_app_readwrite;",
   ]
   revocation_statements = [
     "REASSIGN OWNED BY \"{{name}}\" TO ${var.rds_master_username};",

@@ -270,6 +270,20 @@ end-to-end.
   skipped exporting `VAULT_ADDR`/`VAULT_TOKEN` in Step 4, or the cluster
   from Step 3 is still provisioning — check `terraform output vault_addr`
   resolves to something before retrying.
+- **`terraform apply` fails on every single `vault_*` resource at once with
+  `403`, `"failed to lookup token"`, `"invalid token"`:** different from
+  the bullet above — this is a `VAULT_TOKEN` that *was* set but has since
+  expired, not one that was never set. `hcp_vault_cluster_admin_token` (see
+  Step 4) is a short-lived bootstrap token, not a credential meant for
+  reuse across sessions — confirm with `terraform state show
+  'module.hcp_vault.hcp_vault_cluster_admin_token.bootstrap'` and check
+  `created_at`. Fix: force a fresh one and re-export it before retrying:
+  ```bash
+  terraform apply -replace="module.hcp_vault.hcp_vault_cluster_admin_token.bootstrap" -target=module.hcp_vault
+  export VAULT_ADDR="$(terraform output -raw vault_addr)"
+  export VAULT_TOKEN="$(terraform output -raw vault_bootstrap_admin_token)"
+  terraform apply
+  ```
 - **HVN route stays in FAILED state:** the VPC peering accepter must be ACTIVE
   before HCP will accept the route — confirm the peering is accepted in the AWS
   console and re-run the Step 3 apply.
