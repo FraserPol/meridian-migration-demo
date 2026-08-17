@@ -22,6 +22,37 @@ Postgres, no AWS/HCP account) or
 [`PRODUCTION_SETUP.md`](./PRODUCTION_SETUP.md) (the real thing — Terraform,
 AWS RDS + HCP Vault, dynamic credentials).
 
+## Architecture at a glance
+
+The full versions of both diagrams — every primitive, the 5-step OIDC
+boundary-crossing walk, trade-offs — are in
+[`solution-architecture.md`](./solution-architecture.md#2-current-state-architecture).
+These are the simplified cut: what changes, at a glance.
+
+**Current state** — four environments, all owned and provisioned by
+traditional IT, promoted one at a time through a manual CI gate:
+
+```mermaid
+flowchart LR
+    DEV[Dev] --> QA[QA] --> STG[Staging] --> PROD[Production]
+    CI["Manual CI\nticket-provisioned"] -.-> DEV & QA & STG & PROD
+    DEV & QA & STG & PROD --> RDS[("RDS Postgres")]
+```
+
+**Target state** — Dev/QA/Staging move to Vercel (Production stays on
+traditional IT for this phase); RDS and Vault stay exactly where they are,
+reached over Secure Compute with short-lived OIDC-issued credentials
+instead of static secrets:
+
+```mermaid
+flowchart LR
+    DEV_ENG[Developer] -->|git push| VERCEL["Vercel\nDev / QA / Staging"]
+    VERCEL -->|"OIDC token → short-lived creds"| VAULT[("HCP Vault")]
+    VERCEL -->|Secure Compute| RDS[("AWS RDS\n(unchanged)")]
+    VERCEL --> GATEWAY["AI Gateway"] --> COPILOT["Migration Copilot"]
+    VERCEL -.->|"Phase 2, later"| PROD["Production\n(stays on traditional IT for now)"]
+```
+
 ## Demo accounts
 
 Password for all three: **`VercelDemo!2026`**
