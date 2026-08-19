@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import type { MigrationCopilotUIMessage } from "@/workflows/migration-copilot/workflow";
@@ -122,6 +122,27 @@ export function ChatPanel() {
 
   const isBusy = status === "submitted" || status === "streaming";
 
+  // Auto-follow the response as it streams in, instead of leaving the log
+  // scrolled wherever it was and making the user manually chase new text
+  // down. stickToBottomRef tracks whether the user was already at the
+  // bottom before this update — if they've deliberately scrolled up to
+  // read earlier messages mid-stream, we don't yank them back down.
+  const chatLogRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+
+  function handleChatLogScroll() {
+    const el = chatLogRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distanceFromBottom < 80;
+  }
+
+  useEffect(() => {
+    const el = chatLogRef.current;
+    if (!el || !stickToBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages, isBusy]);
+
   function submit(text: string) {
     if (!text.trim() || isBusy) return;
     sendMessage({ text }, { body: { simulateFailover } });
@@ -140,7 +161,7 @@ export function ChatPanel() {
         </div>
       )}
 
-      <div className="chat-log">
+      <div className="chat-log" ref={chatLogRef} onScroll={handleChatLogScroll}>
         {messages.map((message) => (
           <div key={message.id} className={`chat-message ${message.role}`}>
             {message.parts.map((part, i) => {
