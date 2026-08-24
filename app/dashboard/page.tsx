@@ -1,15 +1,26 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { getSession, VaultUnavailableError, VAULT_UNAVAILABLE_MESSAGE } from "@/lib/session";
 import { getDb } from "@/lib/db";
 import { profiles, watchlistItems, type Profile, type WatchlistItem } from "@/lib/db/schema";
 
-// Reads the session cookie and does a live, per-user DB read — request-time
-// by design. See next.config.ts.
-export const instant = false;
+// The session-gated DB read is isolated in <DashboardContent> below rather
+// than running at this top level, so this page has no unconditional dynamic
+// API call of its own — it can prerender a static loading frame instead
+// of the whole route falling back to `export const instant = false` (see
+// app/dashboard/layout.tsx and next.config.ts for the same split one
+// level up).
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<p style={{ color: "var(--muted)" }}>Loading your dashboard…</p>}>
+      <DashboardContent />
+    </Suspense>
+  );
+}
 
-export default async function DashboardPage() {
+async function DashboardContent() {
   let profile: Profile | undefined;
   let items: WatchlistItem[];
   try {
