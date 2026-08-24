@@ -14,6 +14,11 @@
  *   3. That Vault token reads a dynamic, TTL-bound Postgres credential
  *      from Vault's database secrets engine — never a standing password.
  *
+ * The Vault client token from step 2 is itself cached and renewed
+ * in-process (getVaultToken() below) rather than re-run through the full
+ * OIDC login handshake on every cache miss — see getVaultToken()'s comment
+ * for why that matters for resilience, not just request count.
+ *
  * DEMO SCOPE / DELIBERATE DECISION:
  * Standing up a live HCP Vault cluster is out of scope for a "small,
  * deployed slice" demo (the take-home brief is explicit that size of
@@ -109,10 +114,41 @@ function vaultNamespaceHeaders(): Record<string, string> {
   return namespace ? { "X-Vault-Namespace": namespace } : {};
 }
 
+type VaultTokenInfo = {
+  token: string;
+  renewable: boolean;
+  // When we should next refresh — 80% of the token's own TTL, same
+  // convention as the DB-credential cache below. Distinct from
+  // hardExpiresAt so a failed refresh has room to fall back to the
+  // still-technically-valid token instead of failing outright.
+  refreshAt: number;
+  // Vault's actual reported expiry. Once past this, the token is dead for
+  // real and there is nothing left to fall back to.
+  hardExpiresAt: number;
+};
+
+function vaultTokenInfoFromAuth(auth: {
+  client_token?: string;
+  lease_duration?: number;
+  renewable?: boolean;
+}): VaultTokenInfo {
+  const clientToken = auth.client_token;
+  if (!clientToken) {
+    throw new Error("Vault response missing auth.client_token");
+  }
+  const ttlMs = (auth.lease_duration ?? 300) * 1000;
+  return {
+    token: clientToken,
+    renewable: auth.renewable ?? false,
+    refreshAt: Date.now() + ttlMs * 0.8,
+    hardExpiresAt: Date.now() + ttlMs,
+  };
+}
+
 async function loginToVaultWithOidc(
   vaultAddr: string,
   headers?: Pick<Headers, "get">,
-): Promise<string> {
+): Promise<VaultTokenInfo> {
   const jwt = getVercelOidcToken(headers);
   const role = process.env.VAULT_JWT_AUTH_ROLE ?? "vercel-app";
 
@@ -126,12 +162,107 @@ async function loginToVaultWithOidc(
     throw new Error(`Vault JWT login failed: ${res.status} ${await res.text()}`);
   }
 
-  const body = (await res.json()) as { auth?: { client_token?: string } };
-  const clientToken = body.auth?.client_token;
-  if (!clientToken) {
-    throw new Error("Vault JWT login response missing auth.client_token");
+  const body = (await res.json()) as {
+    auth?: { client_token?: string; lease_duration?: number; renewable?: boolean };
+  };
+  if (!body.auth) {
+    throw new Error("Vault JWT login response missing auth block");
   }
-  return clientToken;
+  return vaultTokenInfoFromAuth(body.auth);
+}
+
+/**
+ * Renews the Vault client token in place instead of re-running the full
+ * OIDC login handshake. `infra/terraform/modules/vault-config`'s
+ * `vercel_app` role issues renewable (service) tokens with a 5 minute TTL
+ * and a 15 minute max TTL, so a token can be renewed 2-3 times before a
+ * fresh login is required.
+ */
+async function renewVaultToken(vaultAddr: string, token: string): Promise<VaultTokenInfo> {
+  const res = await fetch(`${vaultAddr}/v1/auth/token/renew-self`, {
+    method: "POST",
+    headers: { "X-Vault-Token": token, ...vaultNamespaceHeaders() },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Vault token renewal failed: ${res.status} ${await res.text()}`);
+  }
+
+  const body = (await res.json()) as {
+    auth?: { client_token?: string; lease_duration?: number; renewable?: boolean };
+  };
+  if (!body.auth) {
+    throw new Error("Vault token renewal response missing auth block");
+  }
+  return vaultTokenInfoFromAuth(body.auth);
+}
+
+let cachedToken: VaultTokenInfo | null = null;
+// Same in-flight-promise dedupe idiom as `pending` below, applied one layer
+// down: without it, N concurrent requests that all find the cached token
+// past its refreshAt would each independently renew/re-login instead of
+// sharing one refresh.
+let pendingToken: Promise<VaultTokenInfo> | null = null;
+
+/**
+ * Returns a Vault client token, renewing or re-authenticating as needed.
+ *
+ * Both callers below (dynamic DB credentials and the KV app-config secret)
+ * used to call loginToVaultWithOidc() directly on every cache miss — a
+ * fresh OIDC-login round trip through Vault's jwt auth method every single
+ * time, with no fallback if that one call happened to land during a Vault
+ * blip. This adds two layers of resilience on top: (1) prefer renew-self
+ * over a fresh login when the cached token is renewable — cheaper, and a
+ * second independent code path in Vault that can succeed even when login
+ * is having trouble; (2) if both renewal and a fresh login fail, keep
+ * serving the still-cached token as long as it hasn't hit its *real*
+ * expiry yet, rather than failing every caller the instant a refresh
+ * attempt fails. A token Vault has actually revoked out-of-band still
+ * surfaces normally, via a 403 on the next read that uses it.
+ */
+async function getVaultToken(vaultAddr: string, headers?: Pick<Headers, "get">): Promise<string> {
+  const now = Date.now();
+  if (cachedToken && cachedToken.refreshAt > now) {
+    return cachedToken.token;
+  }
+
+  if (!pendingToken) {
+    pendingToken = (async () => {
+      if (cachedToken?.renewable) {
+        try {
+          return await renewVaultToken(vaultAddr, cachedToken.token);
+        } catch {
+          // Renewal failed — hit its max TTL, Vault blip, whatever. Fall
+          // through to a fresh login rather than giving up.
+        }
+      }
+      return await loginToVaultWithOidc(vaultAddr, headers);
+    })().finally(() => {
+      pendingToken = null;
+    });
+  }
+
+  try {
+    const info = await pendingToken;
+    cachedToken = info;
+    return info.token;
+  } catch (err) {
+    if (cachedToken && cachedToken.hardExpiresAt > now) {
+      return cachedToken.token;
+    }
+    throw err;
+  }
+}
+
+// A 403 on a read means Vault itself has rejected the token — revoked
+// out-of-band, or it lied about being renewable. Clearing the cache here
+// (rather than only in getVaultToken) means the *next* call gets a fresh
+// login immediately instead of getVaultToken handing out the same dead
+// token again for the rest of its refreshAt window.
+function invalidateCachedTokenIfRejected(status: number): void {
+  if (status === 403) {
+    cachedToken = null;
+  }
 }
 
 async function readDynamicDbCredentials(
@@ -145,6 +276,7 @@ async function readDynamicDbCredentials(
   });
 
   if (!res.ok) {
+    invalidateCachedTokenIfRejected(res.status);
     throw new Error(`Vault dynamic credential read failed: ${res.status} ${await res.text()}`);
   }
 
@@ -210,7 +342,7 @@ export async function getDatabaseConnectionString(headers?: Pick<Headers, "get">
   if (!pending) {
     pending = (async () => {
       try {
-        const vaultToken = await loginToVaultWithOidc(vaultAddr, headers);
+        const vaultToken = await getVaultToken(vaultAddr, headers);
         return await readDynamicDbCredentials(vaultAddr, vaultToken);
       } catch (err) {
         // Distinguishes "Vault is down" from a genuinely missing/invalid
@@ -278,13 +410,14 @@ export async function getAuthSecret(headers?: Pick<Headers, "get">): Promise<str
   }
 
   try {
-    const vaultToken = await loginToVaultWithOidc(vaultAddr, headers);
+    const vaultToken = await getVaultToken(vaultAddr, headers);
 
     const res = await fetch(`${vaultAddr}/v1/${kvPath}`, {
       headers: { "X-Vault-Token": vaultToken, ...vaultNamespaceHeaders() },
     });
 
     if (!res.ok) {
+      invalidateCachedTokenIfRejected(res.status);
       throw new Error(`Vault KV app-config read failed: ${res.status} ${await res.text()}`);
     }
 
