@@ -130,7 +130,25 @@ export async function migrationCopilotWorkflow(
         // in this list with no code change and no re-issued API keys —
         // the "provider flexibility and failover" primitive called out
         // in solution-architecture.md Section 4.
-        order: ["bedrock", "anthropic"],
+        //
+        // anthropic first, not bedrock: reproduced directly against a live
+        // Gateway account (bypassing DurableAgent entirely, via streamText)
+        // that the *first* tool call of a streamed multi-step run comes back
+        // from Bedrock's Claude endpoint with a corrupted toolName — e.g.
+        // `getLegacyRouteInventory" />` instead of `getLegacyRouteInventory`
+        // — which then fails tool lookup with "Tool ... not found" and
+        // crashes the whole workflow run. Subsequent tool calls in the same
+        // run come back clean, and the direct Anthropic API path never
+        // corrupts the name at all — this is specific to the Bedrock
+        // provider's streaming tool-call-name reconstruction in the
+        // installed ai/@ai-sdk/gateway versions, not this app's own tool
+        // definitions (verified clean against both providers via
+        // generateText; only streamText's first call via bedrock reproduces
+        // it). Keeping bedrock as the second entry preserves real failover
+        // if Anthropic's direct API degrades, without eating this bug on
+        // the common path. Re-promote bedrock once the upstream issue is
+        // fixed in a newer ai/@ai-sdk/gateway release.
+        order: ["anthropic", "bedrock"],
         // Cross-model fallback: if the model above is completely
         // unavailable (not just its primary provider), Gateway retries
         // against this list before failing the request. This is also what
