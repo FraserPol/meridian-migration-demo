@@ -257,12 +257,52 @@ chat stream starts ("thinking…") and then fails:
    tab. A verified card alone doesn't unlock every model — some return a
    separate 403 ("Free tier users do not have access to this model") until
    the team has real paid credits, not just a card on file.
+3. Verify with a minimal script before trusting the full app — a plain
+   `streamText` call is a faster signal than clicking through the UI,
+   since it isolates "is Gateway billed and reachable" from "does the
+   Migration Copilot's own workflow logic work":
 
-No Terraform variable or app code controls this — it's purely a Vercel
-team-level billing setting. See `README.md`'s Known Limitations for how
-this surfaces if skipped, and `scripts/verify-gateway-fallback.ts` for a
-standalone script that confirms Gateway is actually serving requests
-end-to-end.
+   ```ts
+   // verify-gateway.ts — run from the repo root, this repo already has
+   // ai/typescript/tsx installed, no separate project needed.
+   import { streamText } from "ai";
+
+   const result = streamText({
+     model: "openai/gpt-5.4", // see Model Slug Rules below — do not guess
+     prompt: "Write a one-sentence fun fact about lighthouses.",
+   });
+
+   for await (const chunk of result.textStream) process.stdout.write(chunk);
+   console.log("\n\nToken usage:", await result.usage);
+   ```
+
+   ```bash
+   set -a && source .env.local && set +a && npx tsx verify-gateway.ts
+   ```
+
+   No `AI_GATEWAY_API_KEY` needed here — `.env.local` already has a
+   `VERCEL_OIDC_TOKEN` from `vercel link` (Step 8), and OIDC is AI
+   Gateway's default auth path. A manual `AI_GATEWAY_API_KEY` is only for
+   CI or non-Vercel environments. If this succeeds and logs real token
+   usage, billing is confirmed working — a 402/403 here means Step 10.1–2
+   above isn't actually done yet, regardless of what the dashboard shows.
+
+   **Model Slug Rules — do not guess:** slugs are `provider/model` with
+   dots for versions (`anthropic/claude-sonnet-4.6`, not
+   `claude-sonnet-4-6`), and they change frequently — a plausible-looking
+   slug (e.g. a stale tutorial's `openai/gpt-5.6-sol`) can be entirely
+   fictional and will just 400. Check current slugs against
+   `gateway.getAvailableModels()` or https://vercel.com/docs/ai-gateway
+   before hardcoding one; this repo's own current ones are in
+   `lib/ai/routing.ts` (`FAST_MODEL`, `FRONTIER_MODEL`,
+   `FRONTIER_FALLBACK_MODEL`).
+
+No Terraform variable or app code controls any of this — it's purely a
+Vercel team-level billing setting. See `README.md`'s Known Limitations for
+how this surfaces if skipped, and `scripts/verify-gateway-fallback.ts` for
+a standalone script that confirms Gateway's fallback routing specifically
+(as opposed to Step 10.3 above, which only confirms Gateway is reachable
+and billed at all).
 
 ---
 
