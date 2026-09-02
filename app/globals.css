@@ -6,6 +6,15 @@
   --muted: #8a90a4;
   --accent: #4f7cff;
   --accent-hover: #6f92ff;
+  /* Distinct from --accent/--accent-hover above: those two stay AA-safe as
+     *text/borders on the dark page background* (links, badges, focus
+     rings) — but white text on a solid --accent fill only reaches 3.71:1,
+     below WCAG AA's 4.5:1, and --accent-hover as a fill is worse (2.90:1).
+     These two are darker steps of the same hue, used only where a solid
+     fill sits behind white text (buttons) — see DESIGN.md's Colors
+     section for the measured ratios. */
+  --accent-solid: #3d63e0;
+  --accent-solid-hover: #3454c4;
   --green: #22c55e;
   --red: #ef4444;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
@@ -15,10 +24,20 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  line-height: 1.5;
+  /* Prevents the whole page from ever scrolling sideways — the one thing
+     no element (an unwrapped table, a long unbreakable string) should be
+     able to force. Individual elements that need horizontal scroll (data
+     tables) opt in explicitly via .table-scroll instead. */
+  overflow-x: hidden;
 }
 
 a {
@@ -37,6 +56,16 @@ a {
   padding: 0 20px;
 }
 
+@media (max-width: 640px) {
+  .page {
+    padding: 20px 16px 60px;
+  }
+
+  .auth-page {
+    margin-top: 6vh;
+  }
+}
+
 .card {
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -49,6 +78,8 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   padding: 16px 20px;
   border-bottom: 1px solid var(--panel-border);
 }
@@ -57,6 +88,7 @@ a {
   display: flex;
   gap: 16px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .nav-links a {
@@ -74,6 +106,21 @@ a {
   font-weight: 700;
   color: var(--text);
   text-decoration: none;
+}
+
+/* The signed-in user's email — useful context on a desktop-width nav, but
+   on a narrow phone screen it's the first thing to drop: it's the longest
+   single piece of text in the nav (often 25-35 characters) and the least
+   essential — the links and sign-out control matter more than a reminder
+   of who's logged in. */
+.nav-email {
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .nav-email {
+    display: none;
+  }
 }
 
 h1 {
@@ -105,7 +152,11 @@ textarea {
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   color: var(--text);
-  font-size: 14px;
+  /* 16px is a floor, not a style choice: anything smaller triggers iOS
+     Safari's automatic zoom-on-focus, which is a real mobile usability
+     break (the page visibly jumps/zooms every time a field is tapped),
+     not a cosmetic nitpick. */
+  font-size: 16px;
 }
 
 button {
@@ -115,18 +166,52 @@ button {
   padding: 10px 16px;
   font-size: 14px;
   font-weight: 600;
-  background: var(--accent);
+  /* See --accent-solid's definition above: this is the AA-safe fill for
+     white button text, distinct from --accent (used for links/badges). */
+  background: var(--accent-solid);
   color: white;
+  transition: background-color 0.15s ease, transform 0.05s ease;
 }
 
 button:hover {
-  background: var(--accent-hover);
+  background: var(--accent-solid-hover);
+}
+
+button:active {
+  transform: scale(0.98);
 }
 
 button.secondary {
   background: transparent;
   border: 1px solid var(--panel-border);
   color: var(--muted);
+}
+
+/* Comfortable tap targets on touch devices — WCAG 2.5.8's 24px minimum is
+   the legal floor, but 44px is the practical Apple/Google HIG guidance
+   for "doesn't require careful aiming." Desktop keeps the tighter default
+   padding above; this only widens the hit area where fingers, not a
+   cursor, are doing the tapping. */
+@media (max-width: 640px) {
+  button {
+    padding: 12px 18px;
+    min-height: 44px;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .error-banner {
@@ -153,8 +238,19 @@ button.secondary {
   border-radius: 4px;
 }
 
+/* Lets a data table scroll independently inside its own card on a narrow
+   viewport, instead of forcing the whole page to scroll sideways — the
+   table is the one thing on this page that's inherently wide (5 columns
+   of financial data), so it's the one thing that gets to opt into its own
+   horizontal scroll region. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 table {
   width: 100%;
+  min-width: 480px;
   border-collapse: collapse;
 }
 
@@ -261,12 +357,27 @@ th {
 .toolbar-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 12px 0;
   margin-top: 4px;
   border-top: 1px solid var(--panel-border);
   font-size: 13px;
   color: var(--muted);
+}
+
+/* A flex row combining an input (width: 100% above) with a sibling button
+   — e.g. the chat composer, "Add a ticker." Without min-width: 0, a flex
+   item's default min-width is auto (its content size), which can make the
+   input refuse to shrink below that on a narrow viewport and push the
+   button off the edge of the card. */
+.inline-form {
+  display: flex;
+  gap: 10px;
+}
+
+.inline-form input {
+  min-width: 0;
 }
 
 .info-icon {

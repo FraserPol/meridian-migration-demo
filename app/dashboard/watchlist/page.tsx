@@ -54,6 +54,7 @@ export default async function WatchlistPage() {
         {items.length === 0 ? (
           <p style={{ color: "var(--muted)" }}>Nothing here yet — add a ticker above.</p>
         ) : (
+          <div className="table-scroll">
           <table id="watchlist-table">
             <thead>
               <tr>
@@ -85,6 +86,7 @@ export default async function WatchlistPage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
         <p style={{ color: "var(--muted)", fontSize: 12, marginTop: 12 }}>
           Quotes are computed server-side on page load, then refreshed live from{" "}

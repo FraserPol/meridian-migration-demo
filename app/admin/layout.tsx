@@ -43,7 +43,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <span className="brand">Meridian Capital — IT Platform Admin</span>
         <div className="nav-links">
           <span className="badge">Admin</span>
-          <span style={{ color: "var(--muted)" }}>{session.email}</span>
+          <span className="nav-email">{session.email}</span>
           <form action={signOutAction}>
             <button type="submit" className="secondary">
               Sign out

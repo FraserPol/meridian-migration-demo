@@ -85,7 +85,7 @@ async function UserNavSlice() {
   if (!session) return null;
   return (
     <>
-      <span style={{ color: "var(--muted)" }}>{session.email}</span>
+      <span className="nav-email">{session.email}</span>
       <form action={signOutAction}>
         <button type="submit" className="secondary">
           Sign out

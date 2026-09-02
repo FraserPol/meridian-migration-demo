@@ -225,7 +225,7 @@ export function ChatPanel() {
           e.preventDefault();
           submit(input);
         }}
-        style={{ display: "flex", gap: 10 }}
+        className="inline-form"
       >
         <input
           value={input}
