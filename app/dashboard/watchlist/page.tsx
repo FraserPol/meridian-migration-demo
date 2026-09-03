@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { getSession, VaultUnavailableError, VAULT_UNAVAILABLE_MESSAGE } from "@/lib/session";
@@ -8,11 +9,20 @@ import { AddTickerForm } from "./add-ticker-form";
 import { RemoveTickerButton } from "./remove-ticker-button";
 import { RefreshQuotesButton } from "./refresh-quotes-button";
 
-// Reads the session cookie and live per-user watchlist + quote data —
-// request-time by design. See next.config.ts.
-export const instant = false;
+// The session-gated DB read is isolated in <WatchlistContent> below rather
+// than running at this top level, so this page has no unconditional
+// dynamic API call of its own — it can prerender a static loading frame
+// instead of the whole route falling back to `export const instant =
+// false` (see app/dashboard/page.tsx for the same split one level up).
+export default function WatchlistPage() {
+  return (
+    <Suspense fallback={<p style={{ color: "var(--muted)" }}>Loading your watchlist…</p>}>
+      <WatchlistContent />
+    </Suspense>
+  );
+}
 
-export default async function WatchlistPage() {
+async function WatchlistContent() {
   let items: WatchlistItem[];
   try {
     const hdrs = await headers();

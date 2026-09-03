@@ -51,9 +51,63 @@ a {
 }
 
 .auth-page {
-  max-width: 420px;
-  margin: 10vh auto 0;
-  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 40px 20px;
+  /* A quiet radial glow, not a spotlight — composites over body's solid
+     --bg wherever the gradient itself fades to transparent, so this stays
+     a background treatment, not a competing light source (see DESIGN.md's
+     Elevation & Depth: this app is deliberately flat, no drop shadows). */
+  background: radial-gradient(
+    ellipse 900px 500px at 50% 0%,
+    rgba(79, 124, 255, 0.1),
+    transparent 70%
+  );
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* The one spot of color this page spends its "signature element" budget
+   on — a thin gradient hairline, not a shadow or a border, consistent
+   with DESIGN.md's flat elevation model. */
+.auth-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+}
+
+.brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent-solid));
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 16px;
+}
+
+.auth-subtitle {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.auth-submit {
+  width: 100%;
 }
 
 @media (max-width: 640px) {
@@ -62,7 +116,7 @@ a {
   }
 
   .auth-page {
-    margin-top: 6vh;
+    padding: 24px 16px;
   }
 }
 
@@ -228,7 +282,8 @@ button.secondary {
   font-size: 12px;
   color: var(--muted);
   margin-top: 24px;
-  line-height: 1.6;
+  padding-top: 20px;
+  border-top: 1px solid var(--panel-border);
 }
 
 .demo-creds code {
@@ -236,6 +291,49 @@ button.secondary {
   background: #0d1119;
   padding: 1px 5px;
   border-radius: 4px;
+  font-size: 11px;
+}
+
+.demo-creds-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 11px;
+}
+
+.demo-creds-header span:last-child {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--muted);
+}
+
+.demo-account-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.demo-account-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.demo-account-desc {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
 }
 
 /* Lets a data table scroll independently inside its own card on a narrow

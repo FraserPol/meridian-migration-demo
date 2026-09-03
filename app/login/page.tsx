@@ -8,11 +8,12 @@ export default function LoginPage() {
 
   return (
     <main className="auth-page">
-      <div className="card">
+      <div className="card auth-card">
+        <div className="brand-mark" aria-hidden="true">
+          MC
+        </div>
         <h1>Meridian Capital</h1>
-        <p style={{ color: "var(--muted)", fontSize: 14 }}>
-          Portfolio Watchlist — Vercel SA take-home demo
-        </p>
+        <p className="auth-subtitle">Portfolio Watchlist — Vercel SA take-home demo</p>
 
         <form action={formAction}>
           <label htmlFor="email">Email</label>
@@ -34,20 +35,42 @@ export default function LoginPage() {
           )}
 
           <div style={{ marginTop: 20 }}>
-            <button type="submit" disabled={pending}>
+            <button type="submit" disabled={pending} className="auth-submit">
               {pending ? "Signing in..." : "Sign in"}
             </button>
           </div>
         </form>
 
         <div className="demo-creds">
-          <strong>Demo accounts</strong> (password for all: <code>VercelDemo!2026</code>)
-          <br />
-          <code>jordan.reyes@meridiancapital.demo</code> — customer, populated watchlist
-          <br />
-          <code>alex.chen@meridiancapital.demo</code> — customer, no profile yet
-          <br />
-          <code>admin@meridiancapital.demo</code> — admin, Migration Copilot
+          <div className="demo-creds-header">
+            <span>Demo accounts</span>
+            <span>
+              password: <code>VercelDemo!2026</code>
+            </span>
+          </div>
+          <ul className="demo-account-list">
+            <li>
+              <div className="demo-account-row">
+                <code>jordan.reyes@meridiancapital.demo</code>
+                <span className="badge">customer</span>
+              </div>
+              <span className="demo-account-desc">Populated watchlist</span>
+            </li>
+            <li>
+              <div className="demo-account-row">
+                <code>alex.chen@meridiancapital.demo</code>
+                <span className="badge">customer</span>
+              </div>
+              <span className="demo-account-desc">No profile yet — onboarding flow</span>
+            </li>
+            <li>
+              <div className="demo-account-row">
+                <code>admin@meridiancapital.demo</code>
+                <span className="badge">admin</span>
+              </div>
+              <span className="demo-account-desc">Migration Copilot</span>
+            </li>
+          </ul>
         </div>
       </div>
     </main>
