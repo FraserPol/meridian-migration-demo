@@ -396,6 +396,18 @@ th {
   padding: 4px;
 }
 
+/* The 300px min-height keeps the panel a stable size on desktop so it
+   doesn't visibly jump when the first message arrives — but on mobile,
+   an empty chat-log reserving that much space pushes the composer input
+   far below the fold for no benefit (the suggestion buttons above already
+   fill that role). Let it size to its actual (zero, when empty) content
+   instead. */
+@media (max-width: 640px) {
+  .chat-log {
+    min-height: 0;
+  }
+}
+
 .chat-message {
   padding: 10px 14px;
   border-radius: 10px;

@@ -68,6 +68,7 @@ function RunHistory({ trigger }: { trigger: number }) {
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <h2>Recent runs (audit trail)</h2>
+      <div className="table-scroll">
       <table style={{ width: "100%", fontSize: 13 }}>
         <thead>
           <tr style={{ textAlign: "left", color: "var(--muted)" }}>
@@ -100,6 +101,7 @@ function RunHistory({ trigger }: { trigger: number }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
