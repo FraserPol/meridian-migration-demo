@@ -307,7 +307,7 @@ button.secondary {
   font-size: 11px;
 }
 
-.demo-creds-header span:last-child {
+.demo-creds-header .demo-password {
   font-weight: 400;
   text-transform: none;
   letter-spacing: normal;
@@ -334,6 +334,53 @@ button.secondary {
   display: block;
   margin-top: 2px;
   color: var(--muted);
+}
+
+/* Resets button chrome so a click-to-fill account row still reads as the
+   plain text list it visually was — the pointer cursor and hover state
+   are the only tells that it's interactive. */
+.demo-account-btn {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.demo-account-btn:hover {
+  background: rgba(79, 124, 255, 0.06);
+  border-color: var(--panel-border);
+}
+
+.demo-account-btn:hover code {
+  border-color: var(--accent);
+}
+
+.demo-password {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.demo-password:hover code {
+  border-color: var(--accent);
+}
+
+.demo-account-btn code,
+.demo-password code {
+  transition: border-color 0.15s ease;
+  border: 1px solid transparent;
 }
 
 /* Lets a data table scroll independently inside its own card on a narrow
