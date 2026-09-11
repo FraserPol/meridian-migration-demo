@@ -82,7 +82,12 @@ function RunHistory({ trigger }: { trigger: number }) {
         <tbody>
           {runs.map((run) => (
             <tr key={run.id}>
-              <td>{new Date(run.createdAt).toLocaleTimeString()}</td>
+              <td>
+                {new Date(run.createdAt).toLocaleString(undefined, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </td>
               <td>
                 {providerSummary(run.providers)}
                 {run.simulatedFailureRequested && (
