@@ -32,12 +32,26 @@ const PRICING_USD: Record<PricingKey, { inputPerMillion: number; outputPerMillio
   "openai/gpt-5.4": { inputPerMillion: 2.5, outputPerMillion: 15 },
 };
 
+/**
+ * AI Gateway reports Claude-served-by-AWS as `claudeaws`, not `bedrock`.
+ * Both appear in this app's own audit rows, so without this alias half the
+ * Bedrock-served runs miss the table and silently fall through to
+ * FALLBACK_RATE — which is Sonnet pricing, overstating a Haiku call by
+ * roughly 3x. Found by checking a recorded insight's cost against the
+ * token counts beside it; the same table drives the daily spend cap, so a
+ * wrong rate doesn't just misreport, it closes the app early.
+ */
+const PROVIDER_ALIASES: Record<string, string> = {
+  claudeaws: "bedrock",
+};
+
 export function estimateCostUsd(
   provider: string,
   modelId: string,
   inputTokens: number,
   outputTokens: number,
 ): number {
-  const rates = PRICING_USD[`${provider}/${modelId}` as PricingKey] ?? FALLBACK_RATE;
+  const canonical = PROVIDER_ALIASES[provider] ?? provider;
+  const rates = PRICING_USD[`${canonical}/${modelId}` as PricingKey] ?? FALLBACK_RATE;
   return (inputTokens / 1_000_000) * rates.inputPerMillion + (outputTokens / 1_000_000) * rates.outputPerMillion;
 }
