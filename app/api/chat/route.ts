@@ -1,7 +1,10 @@
+import { NextResponse } from "next/server";
 import { convertToModelMessages, createUIMessageStreamResponse, type UIMessage } from "ai";
 import { createModelCallToUIChunkTransform } from "@ai-sdk/workflow";
 import { start } from "workflow/api";
 import { getSession, SessionUnavailableError, sessionUnavailableResponse } from "@/lib/session";
+import { getDb } from "@/lib/db";
+import { getDailyBudgetStatus } from "@/lib/ai/budget";
 import { migrationCopilotWorkflow } from "@/workflows/migration-copilot/workflow";
 
 // Fluid Compute: this route itself returns almost immediately after
@@ -25,6 +28,26 @@ export async function POST(req: Request) {
     // Enforced again here (not just in middleware/proxy) because this
     // route could be called directly.
     return new Response("Forbidden", { status: 403 });
+  }
+
+  // Spend guardrail, checked before the run starts rather than after it
+  // bills: the audit trail makes cost visible, this is what actually stops
+  // it. A Vault blip here shouldn't take the Copilot down, so an
+  // unavailable database fails open on the budget check specifically —
+  // getSession() above has already established this is a real admin.
+  try {
+    const budget = await getDailyBudgetStatus(await getDb(req.headers));
+    if (budget.exceeded) {
+      return NextResponse.json(
+        {
+          error: `Daily Migration Copilot budget reached: $${budget.spentTodayUsd.toFixed(2)} of $${budget.limitUsd.toFixed(2)} spent. Runs resume at 00:00 UTC, or raise COPILOT_DAILY_BUDGET_USD.`,
+        },
+        { status: 429 },
+      );
+    }
+  } catch (err) {
+    if (err instanceof SessionUnavailableError) return sessionUnavailableResponse();
+    throw err;
   }
 
   const {

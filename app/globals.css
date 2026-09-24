@@ -597,6 +597,54 @@ th {
   margin: 4px 0 0;
 }
 
+/* Spend guardrail readout (lib/ai/budget.ts). Sits above the audit table
+   because the cap governs the same runs the table itemises. */
+.budget-meter {
+  margin: 4px 0 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.budget-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.budget-line strong {
+  color: var(--text);
+}
+
+.budget-track {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--panel-border);
+  overflow: hidden;
+}
+
+.budget-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.budget-exceeded .budget-fill {
+  background: var(--danger, #c0392b);
+}
+
+.budget-exceeded .budget-remaining {
+  color: var(--danger, #c0392b);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .budget-fill {
+    transition: none;
+  }
+}
+
 .tool-call-denied {
   border-left-color: var(--danger, #c0392b);
   background: rgba(192, 57, 43, 0.08);

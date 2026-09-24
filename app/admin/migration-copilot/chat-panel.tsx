@@ -105,8 +105,16 @@ function classifierNote(providers: CopilotProviderRecord[]): string | undefined 
  * cost/tokens/provider-per-run are something to click through live,
  * not just a claim about a dashboard nobody in the room can see.
  */
+type BudgetStatus = {
+  spentTodayUsd: number;
+  limitUsd: number;
+  remainingUsd: number;
+  exceeded: boolean;
+};
+
 function RunHistory({ trigger }: { trigger: number }) {
   const [runs, setRuns] = useState<MigrationCopilotRun[]>([]);
+  const [budget, setBudget] = useState<BudgetStatus | null>(null);
 
   // Re-fetches whenever `trigger` (messages.length from the parent)
   // changes — which happens naturally on every turn, so this needs no
@@ -115,8 +123,10 @@ function RunHistory({ trigger }: { trigger: number }) {
     let cancelled = false;
     fetch("/api/migration-copilot/runs")
       .then((res) => (res.ok ? res.json() : { runs: [] }))
-      .then((data: { runs: MigrationCopilotRun[] }) => {
-        if (!cancelled) setRuns(data.runs);
+      .then((data: { runs: MigrationCopilotRun[]; budget?: BudgetStatus }) => {
+        if (cancelled) return;
+        setRuns(data.runs);
+        setBudget(data.budget ?? null);
       })
       .catch(() => {
         // Best-effort — the chat itself already succeeded if we're here.
@@ -131,6 +141,29 @@ function RunHistory({ trigger }: { trigger: number }) {
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <h2>Recent runs (audit trail)</h2>
+      {budget && (
+        <div className={`budget-meter${budget.exceeded ? " budget-exceeded" : ""}`}>
+          <div className="budget-line">
+            <span>
+              Spend today — <strong>${budget.spentTodayUsd.toFixed(2)}</strong> of $
+              {budget.limitUsd.toFixed(2)}
+            </span>
+            <span className="budget-remaining">
+              {budget.exceeded
+                ? "budget reached — runs paused until 00:00 UTC"
+                : `$${budget.remainingUsd.toFixed(2)} left`}
+            </span>
+          </div>
+          <div className="budget-track">
+            <div
+              className="budget-fill"
+              style={{
+                width: `${Math.min(100, (budget.spentTodayUsd / budget.limitUsd) * 100)}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
       <div className="table-scroll">
       <table style={{ width: "100%", fontSize: 13 }}>
         <thead>

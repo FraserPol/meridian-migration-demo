@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { getSession, VaultUnavailableError, sessionUnavailableResponse } from "@/lib/session";
 import { getDb } from "@/lib/db";
+import { getDailyBudgetStatus } from "@/lib/ai/budget";
 import { migrationCopilotRuns } from "@/lib/db/schema";
 
 /**
@@ -33,7 +34,12 @@ export async function GET(req: Request) {
       .orderBy(desc(migrationCopilotRuns.createdAt))
       .limit(5);
 
-    return NextResponse.json({ runs });
+    // Budget is tool-wide (every admin's runs), unlike `runs` above, which
+    // is scoped to the caller — see lib/ai/budget.ts for why the cap isn't
+    // per-user.
+    const budget = await getDailyBudgetStatus(db);
+
+    return NextResponse.json({ runs, budget });
   } catch (err) {
     if (err instanceof VaultUnavailableError) return sessionUnavailableResponse();
     throw err;

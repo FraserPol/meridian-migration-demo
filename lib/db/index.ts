@@ -4,7 +4,7 @@ import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { getDatabaseConnectionString } from "@/lib/vault";
 import * as schema from "./schema";
 
-type Db = PostgresJsDatabase<typeof schema>;
+export type Db = PostgresJsDatabase<typeof schema>;
 
 let cachedConnectionString: string | null = null;
 let cachedClient: ReturnType<typeof postgres> | null = null;
