@@ -15,13 +15,13 @@
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
-    "@ai-sdk/gateway": "^4.0.47",
-    "@ai-sdk/react": "^4.0.62",
+    "@ai-sdk/gateway": "^4.0.55",
+    "@ai-sdk/react": "^4.0.72",
+    "@ai-sdk/workflow": "^1.0.70",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
-    "@workflow/ai": "^4.2.0",
     "@workflow/next": "^4.1.6",
-    "ai": "^6.0.253",
+    "ai": "^7.0.69",
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.36.4",
     "jose": "^5.9.6",

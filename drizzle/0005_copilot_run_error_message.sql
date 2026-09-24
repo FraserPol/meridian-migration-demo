@@ -1,0 +1,1 @@
+ALTER TABLE "migration_copilot_runs" ADD COLUMN "error_message" text;

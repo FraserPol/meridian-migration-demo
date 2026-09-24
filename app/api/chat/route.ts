@@ -1,4 +1,5 @@
 import { convertToModelMessages, createUIMessageStreamResponse, type UIMessage } from "ai";
+import { createModelCallToUIChunkTransform } from "@ai-sdk/workflow";
 import { start } from "workflow/api";
 import { getSession, SessionUnavailableError, sessionUnavailableResponse } from "@/lib/session";
 import { migrationCopilotWorkflow } from "@/workflows/migration-copilot/workflow";
@@ -33,9 +34,10 @@ export async function POST(req: Request) {
   const modelMessages = await convertToModelMessages(messages);
 
   // Per-request data (which admin is asking, for AI Gateway spend
-  // attribution) is passed as a plain workflow argument — DurableAgent
-  // has no callOptionsSchema/prepareCall equivalent, so it's set directly
-  // in providerOptions.gateway inside the workflow function. The OIDC
+  // attribution) is passed as a plain workflow argument and set directly
+  // in providerOptions.gateway inside the workflow function (it has to be
+  // known before the step-up classifier picks the model, so WorkflowAgent's
+  // prepareCall wouldn't simplify this). The OIDC
   // token is passed through too, since the workflow's audit-trail
   // persistence step has no way to read the original request — see
   // workflows/migration-copilot/workflow.ts.
@@ -47,5 +49,10 @@ export async function POST(req: Request) {
     simulateFailover ?? false,
   ]);
 
-  return createUIMessageStreamResponse({ stream: run.readable });
+  // The workflow streams raw ModelCallStreamPart chunks (WorkflowAgent's
+  // provider-shaped format); convert to the UI message protocol useChat
+  // expects here, at the response boundary.
+  return createUIMessageStreamResponse({
+    stream: run.readable.pipeThrough(createModelCallToUIChunkTransform()),
+  });
 }

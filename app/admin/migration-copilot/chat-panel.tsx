@@ -90,6 +90,14 @@ function RunHistory({ trigger }: { trigger: number }) {
               </td>
               <td>
                 {providerSummary(run.providers)}
+                {run.errorMessage && (
+                  <span
+                    title={`This run failed: ${run.errorMessage}`}
+                    style={{ marginLeft: 6, color: "var(--danger, #c0392b)" }}
+                  >
+                    ⚠️ failed
+                  </span>
+                )}
                 {run.simulatedFailureRequested && (
                   <span
                     title="Live-failover-demo toggle was on for this run — the primary model was deliberately broken, so the provider/tier shown here is AI Gateway's real fallback model, not the primary."
@@ -112,8 +120,8 @@ function RunHistory({ trigger }: { trigger: number }) {
 }
 
 export function ChatPanel() {
-  // Typed via MigrationCopilotUIMessage (inferred from the DurableAgent in
-  // workflows/migration-copilot/workflow.ts), so message.parts is a real
+  // Typed via MigrationCopilotUIMessage (inferred from the Migration
+  // Copilot's tool set in workflows/migration-copilot/workflow.ts), so message.parts is a real
   // discriminated union, not `unknown[]`. The `as unknown as {...}` cast
   // below is still needed anyway: `part.type.startsWith("tool-")` renders
   // every tool uniformly without switching on each tool's literal type

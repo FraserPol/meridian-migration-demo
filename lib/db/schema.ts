@@ -119,6 +119,11 @@ export const migrationCopilotRuns = pgTable("migration_copilot_runs", {
   // model actually served it, so a run with this flag set should show the
   // fallback model, not the primary, in that column.
   simulatedFailureRequested: boolean("simulated_failure_requested").notNull().default(false),
+  // Null for a successful run. Set when the run failed — classifier error,
+  // AI Gateway exhausting its fallback list, a thrown tool/model error —
+  // so failed runs land in the audit trail instead of vanishing from it.
+  // See workflows/migration-copilot/workflow.ts's failure handling.
+  errorMessage: text("error_message"),
 });
 
 export type User = typeof users.$inferSelect;
