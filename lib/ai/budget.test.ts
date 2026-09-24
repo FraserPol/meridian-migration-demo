@@ -11,11 +11,19 @@ import { dailyBudgetUsd, getDailyBudgetStatus } from "./budget";
  * Stubs the query builder rather than reaching for a database — the
  * arithmetic and the boundary are what's under test, not drizzle.
  */
-function dbReturning(total: string): Db {
+/**
+ * getDailyBudgetStatus issues one sum per billable table (Copilot runs,
+ * then portfolio insights). The stub answers them in that order so a test
+ * can set each independently and prove they're added rather than one
+ * silently shadowing the other.
+ */
+function dbReturning(copilotTotal: string, insightTotal = "0"): Db {
+  const totals = [copilotTotal, insightTotal];
+  let call = 0;
   return {
     select: () => ({
       from: () => ({
-        where: async () => [{ total }],
+        where: async () => [{ total: totals[call++] ?? "0" }],
       }),
     }),
   } as unknown as Db;
@@ -74,5 +82,18 @@ describe("getDailyBudgetStatus", () => {
     const status = await getDailyBudgetStatus(dbReturning("0"));
     expect(status.spentTodayUsd).toBe(0);
     expect(status.exceeded).toBe(false);
+  });
+
+  it("adds customer insight spend to Copilot spend", async () => {
+    process.env.COPILOT_DAILY_BUDGET_USD = "5";
+    const status = await getDailyBudgetStatus(dbReturning("1.50", "0.75"));
+    expect(status.spentTodayUsd).toBeCloseTo(2.25);
+    expect(status.remainingUsd).toBeCloseTo(2.75);
+  });
+
+  it("can be pushed over the cap by insight spend alone", async () => {
+    process.env.COPILOT_DAILY_BUDGET_USD = "5";
+    const status = await getDailyBudgetStatus(dbReturning("4.90", "0.20"));
+    expect(status.exceeded).toBe(true);
   });
 });

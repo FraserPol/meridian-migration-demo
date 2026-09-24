@@ -7,7 +7,10 @@ import { getDb } from "@/lib/db";
 import { profiles, watchlistItems, type Profile, type WatchlistItem } from "@/lib/db/schema";
 import { computeQuotes } from "@/lib/quotes";
 import { summarizePortfolio } from "@/lib/portfolio";
+import { fingerprintPortfolio } from "@/lib/ai/insights";
 import { PortfolioSummaryStrip } from "./portfolio-summary";
+import { InsightCard } from "./insight-card";
+import { latestInsight } from "@/lib/ai/insight-store";
 
 // The session-gated DB read is isolated in <DashboardContent> below rather
 // than running at this top level, so this page has no unconditional dynamic
@@ -26,6 +29,7 @@ export default function DashboardPage() {
 async function DashboardContent() {
   let profile: Profile | undefined;
   let items: WatchlistItem[];
+  let stored: Awaited<ReturnType<typeof latestInsight>> = null;
   try {
     const hdrs = await headers();
     const session = await getSession(hdrs);
@@ -37,6 +41,27 @@ async function DashboardContent() {
       db.select().from(profiles).where(eq(profiles.userId, session!.userId)).limit(1),
       db.select().from(watchlistItems).where(eq(watchlistItems.userId, session!.userId)),
     ]);
+
+    // Needs the quotes and summary below, so it can't join the parallel
+    // batch above — but it's a cheap indexed read on a small table.
+    const quotesForInsight = computeQuotes(items.map((i) => i.ticker));
+    const summaryForInsight = summarizePortfolio(
+      items,
+      new Map(quotesForInsight.map((q) => [q.ticker, q])),
+    );
+    if (profile && summaryForInsight.positions.length > 0) {
+      const heldTickers = new Set(summaryForInsight.positions.map((p) => p.ticker));
+      stored = await latestInsight(
+        session!.userId,
+        fingerprintPortfolio({
+          riskTolerance: profile.riskTolerance,
+          investmentGoal: profile.investmentGoal,
+          summary: summaryForInsight,
+          watchingOnly: items.map((i) => i.ticker).filter((t) => !heldTickers.has(t)),
+        }),
+        hdrs,
+      );
+    }
   } catch (err) {
     if (err instanceof VaultUnavailableError) {
       // getSession()/getDb() each mint their own Vault credential,
@@ -52,6 +77,10 @@ async function DashboardContent() {
   // headline numbers here can't drift from the ones a click away.
   const quotes = computeQuotes(items.map((i) => i.ticker));
   const summary = summarizePortfolio(items, new Map(quotes.map((q) => [q.ticker, q])));
+
+  // The insight panel only makes sense once there's a position to talk
+  // about and a stated risk tolerance to judge it against.
+  const canAdvise = profile !== undefined && summary.positions.length > 0;
 
   return (
     <>
@@ -84,6 +113,14 @@ async function DashboardContent() {
       )}
 
       {items.length > 0 && <PortfolioSummaryStrip summary={summary} />}
+
+      {canAdvise && (
+        <InsightCard
+          insight={stored?.insight ?? null}
+          createdAt={stored?.createdAt ?? null}
+          stale={stored?.stale ?? false}
+        />
+      )}
 
       <div className="card">
         <h2>Watchlist</h2>

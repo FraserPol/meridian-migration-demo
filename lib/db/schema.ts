@@ -154,7 +154,38 @@ export const priceAlerts = pgTable("price_alerts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Customer-facing AI portfolio insights.
+ *
+ * One row per generated insight, serving three purposes at once rather
+ * than needing three mechanisms: it's the cache (an insight is reused
+ * until the portfolio behind it changes), the audit record (which model
+ * served it, what it cost), and the evidence the daily spend cap reads —
+ * lib/ai/budget.ts sums this table alongside the Copilot's so one budget
+ * governs every model call the app makes.
+ *
+ * `fingerprint` is a digest of the holdings and risk tolerance the
+ * insight was written about. It's what makes the cache correct: the text
+ * is only reused while the thing it describes is unchanged, so a stale
+ * insight can't outlive an edited position.
+ */
+export const portfolioInsights = pgTable("portfolio_insights", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  fingerprint: text("fingerprint").notNull(),
+  insight: text("insight").notNull(),
+  provider: text("provider").notNull(),
+  modelId: text("model_id").notNull(),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  estimatedCostUsd: numeric("estimated_cost_usd", { precision: 10, scale: 6 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Profile = typeof profiles.$inferSelect;
 export type WatchlistItem = typeof watchlistItems.$inferSelect;
 export type PriceAlert = typeof priceAlerts.$inferSelect;
+export type PortfolioInsight = typeof portfolioInsights.$inferSelect;
 export type MigrationCopilotRun = typeof migrationCopilotRuns.$inferSelect;

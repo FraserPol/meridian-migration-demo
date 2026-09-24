@@ -1,5 +1,5 @@
 import { gte, sql } from "drizzle-orm";
-import { migrationCopilotRuns } from "@/lib/db/schema";
+import { migrationCopilotRuns, portfolioInsights } from "@/lib/db/schema";
 import type { Db } from "@/lib/db";
 
 /**
@@ -30,6 +30,11 @@ export type BudgetStatus = {
 };
 
 /**
+ * Sums every model call the app bills for, not just the Copilot's:
+ * admin Copilot runs and customer-facing portfolio insights share one
+ * cap. Two independent budgets would each look healthy while together
+ * overrunning, which is the failure mode a spend cap exists to prevent.
+ *
  * Sums only `estimated_cost_usd`. `classifier_cost_usd` is a breakdown of
  * that same figure (see lib/db/schema.ts), not an additional charge —
  * adding the two would double-count the classifier.
@@ -38,14 +43,22 @@ export async function getDailyBudgetStatus(db: Db): Promise<BudgetStatus> {
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
 
-  const [row] = await db
-    .select({
-      total: sql<string>`coalesce(sum(${migrationCopilotRuns.estimatedCostUsd}), 0)`,
-    })
-    .from(migrationCopilotRuns)
-    .where(gte(migrationCopilotRuns.createdAt, startOfDay));
+  const [copilot, insights] = await Promise.all([
+    db
+      .select({
+        total: sql<string>`coalesce(sum(${migrationCopilotRuns.estimatedCostUsd}), 0)`,
+      })
+      .from(migrationCopilotRuns)
+      .where(gte(migrationCopilotRuns.createdAt, startOfDay)),
+    db
+      .select({
+        total: sql<string>`coalesce(sum(${portfolioInsights.estimatedCostUsd}), 0)`,
+      })
+      .from(portfolioInsights)
+      .where(gte(portfolioInsights.createdAt, startOfDay)),
+  ]);
 
-  const spentTodayUsd = Number(row?.total ?? 0);
+  const spentTodayUsd = Number(copilot[0]?.total ?? 0) + Number(insights[0]?.total ?? 0);
   const limitUsd = dailyBudgetUsd();
 
   return {
