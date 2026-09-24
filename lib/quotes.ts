@@ -40,9 +40,48 @@ function daySeedFor(date: Date): number {
   return Number(date.toISOString().slice(0, 10).replace(/-/g, ""));
 }
 
+/**
+ * Per-day drift for the history walk, roughly -1.5% to +1.5%.
+ *
+ * Deliberately not seededOffset(): that hashes each date independently, so
+ * consecutive days are uncorrelated and a 30-point series comes out as
+ * noise rather than anything resembling a price. This is the step of a
+ * walk, applied cumulatively below.
+ */
+function dailyDrift(ticker: string, date: Date): number {
+  let hash = daySeedFor(date);
+  for (let i = 0; i < ticker.length; i++) {
+    hash = (hash * 131 + ticker.charCodeAt(i) * 17) % 99991;
+  }
+  return ((hash % 300) / 100 - 1.5) / 100;
+}
+
 function priceOn(ticker: string, date: Date): number {
   const base = BASE_PRICES[ticker] ?? 100;
   return Math.max(1, base * (1 + seededOffset(ticker, daySeedFor(date)) / 100));
+}
+
+/**
+ * Builds the sparkline series backwards from today, so the newest point is
+ * exactly the price shown beside it and the one before it is exactly the
+ * previous close that `changePct` implies — the same figure
+ * summarizePortfolio() derives the day's movement from. Earlier days walk
+ * back from there with small cumulative drift.
+ */
+function historyFor(ticker: string, today: Date, todayPrice: number, changePct: number): number[] {
+  const previousClose = todayPrice / (1 + changePct / 100);
+  const series = [previousClose, todayPrice];
+
+  let cursor = previousClose;
+  for (let daysAgo = 2; daysAgo < HISTORY_DAYS; daysAgo++) {
+    const day = new Date(today);
+    day.setUTCDate(day.getUTCDate() - daysAgo);
+    // Walking into the past, so the drift is removed rather than applied.
+    cursor = Math.max(1, cursor / (1 + dailyDrift(ticker, day)));
+    series.unshift(cursor);
+  }
+
+  return series.map((v) => Number(v.toFixed(2)));
 }
 
 export function computeQuotes(tickers: string[]): Quote[] {
@@ -52,23 +91,11 @@ export function computeQuotes(tickers: string[]): Quote[] {
     const pctChange = seededOffset(ticker, daySeedFor(today));
     const price = priceOn(ticker, today);
 
-    // Re-derives each past day from the same seeded function rather than
-    // storing a series, so history stays consistent with whatever
-    // computeQuotes() reports for that day — the mock has no storage, and
-    // a sparkline that disagreed with the price above it would be worse
-    // than no sparkline.
-    const history: number[] = [];
-    for (let daysAgo = HISTORY_DAYS - 1; daysAgo >= 0; daysAgo--) {
-      const day = new Date(today);
-      day.setUTCDate(day.getUTCDate() - daysAgo);
-      history.push(Number(priceOn(ticker, day).toFixed(2)));
-    }
-
     return {
       ticker,
       price: Number(price.toFixed(2)),
       changePct: Number(pctChange.toFixed(2)),
-      history,
+      history: historyFor(ticker, today, price, pctChange),
     };
   });
 }
