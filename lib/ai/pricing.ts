@@ -55,3 +55,15 @@ export function estimateCostUsd(
   const rates = PRICING_USD[`${canonical}/${modelId}` as PricingKey] ?? FALLBACK_RATE;
   return (inputTokens / 1_000_000) * rates.inputPerMillion + (outputTokens / 1_000_000) * rates.outputPerMillion;
 }
+
+/**
+ * Lets a test assert an explicit table entry exists for every provider/model
+ * pair the app can actually produce, rather than trusting `estimateCostUsd`'s
+ * output alone — the frontier rate and FALLBACK_RATE are numerically
+ * identical by design, so a deleted frontier entry would still "look right"
+ * from cost output alone. See lib/ai/pricing.test.ts's fail-closed suite.
+ */
+export function hasExplicitRate(provider: string, modelId: string): boolean {
+  const canonical = PROVIDER_ALIASES[provider] ?? provider;
+  return `${canonical}/${modelId}` in PRICING_USD;
+}

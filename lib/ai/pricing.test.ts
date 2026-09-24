@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { estimateCostUsd } from "./pricing";
+import { estimateCostUsd, hasExplicitRate } from "./pricing";
+import { FAST_MODEL, FRONTIER_MODEL, FRONTIER_FALLBACK_MODEL } from "./routing";
+
+const bareModelId = (slug: string) => slug.split("/")[1];
 
 /**
  * This table drives both the per-run cost shown in the audit trail and the
@@ -38,5 +41,34 @@ describe("estimateCostUsd", () => {
 
   it("returns zero for zero usage", () => {
     expect(estimateCostUsd("anthropic", "claude-haiku-4.5", 0, 0)).toBe(0);
+  });
+});
+
+/**
+ * Every provider/model pair below is one this app can actually put in front
+ * of estimateCostUsd in production: order: ["anthropic", "bedrock"] in
+ * workflow.ts means either provider can serve FAST_MODEL or FRONTIER_MODEL,
+ * `claudeaws` is the raw Gateway slug for Bedrock-served Claude (the exact
+ * miss that overstated costs ~3x before PROVIDER_ALIASES existed), and
+ * FRONTIER_FALLBACK_MODEL is openai's. If any of these silently starts
+ * missing a table entry, estimateCostUsd falls through to FALLBACK_RATE —
+ * for the fast tier and openai that's a visibly wrong number this suite
+ * catches; for the frontier tier the fallback happens to equal the correct
+ * rate, so this checks the table directly via hasExplicitRate instead of
+ * trusting cost output, which a coincidental match could hide.
+ */
+describe("pricing table covers every provider this app can route through (fail-closed)", () => {
+  const OBSERVED_PAIRS = [
+    { provider: "anthropic", modelId: bareModelId(FAST_MODEL) },
+    { provider: "bedrock", modelId: bareModelId(FAST_MODEL) },
+    { provider: "claudeaws", modelId: bareModelId(FAST_MODEL) },
+    { provider: "anthropic", modelId: bareModelId(FRONTIER_MODEL) },
+    { provider: "bedrock", modelId: bareModelId(FRONTIER_MODEL) },
+    { provider: "claudeaws", modelId: bareModelId(FRONTIER_MODEL) },
+    { provider: "openai", modelId: bareModelId(FRONTIER_FALLBACK_MODEL) },
+  ];
+
+  it.each(OBSERVED_PAIRS)("has an explicit rate for $provider/$modelId", ({ provider, modelId }) => {
+    expect(hasExplicitRate(provider, modelId)).toBe(true);
   });
 });
