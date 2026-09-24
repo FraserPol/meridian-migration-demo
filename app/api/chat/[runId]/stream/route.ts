@@ -43,9 +43,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ runId: s
 
   let readable;
   try {
-    readable = getRun(runId).getReadable({ startIndex });
+    const run = getRun(runId);
+    // getRun only rejects a malformed id; a well-formed id for a run that
+    // doesn't exist resolves and then streams nothing, which would leave the
+    // client waiting on a 200 that never produces a chunk. Touching the run's
+    // status forces the lookup so an unknown run is a clean 404 instead.
+    await run.status;
+    readable = run.getReadable({ startIndex });
   } catch {
-    // getRun throws WorkflowRunNotFoundError for an unknown or expired run.
     return new Response("Run not found", { status: 404 });
   }
 

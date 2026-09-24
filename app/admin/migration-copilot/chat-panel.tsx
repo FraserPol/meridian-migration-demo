@@ -57,10 +57,24 @@ const copilotTransport = new WorkflowChatTransport<MigrationCopilotUIMessage>({
   onChatEnd: () => rememberRunId(null),
   // The transport reconnects by chat id by default; this app's runs are
   // addressed by workflow run id (app/api/chat/[runId]/stream), so the URL
-  // is rewritten to the run we actually recorded.
-  prepareReconnectToStreamRequest: ({ api, id }) => ({
-    api: `${api}/${encodeURIComponent(currentRunId ?? id)}/stream`,
-  }),
+  // is rebuilt around the run we actually recorded.
+  //
+  // The `api` argument is the transport's complete default URL
+  // (`/api/chat/<chatId>/stream`), not the base — appending to it produces a
+  // path that matches no route. It's rebuilt from scratch instead.
+  //
+  // sessionStorage is read here rather than relied on from `currentRunId`
+  // alone: after a reload this runs during resume, and reading at call time
+  // removes any dependence on the recovery effect having assigned first.
+  prepareReconnectToStreamRequest: ({ id }) => {
+    let stored: string | null = null;
+    try {
+      stored = window.sessionStorage.getItem(RUN_ID_KEY);
+    } catch {
+      // Storage unavailable — fall back to whatever is in memory.
+    }
+    return { api: `/api/chat/${encodeURIComponent(currentRunId ?? stored ?? id)}/stream` };
+  },
 });
 
 function formatCost(usd: string): string {
