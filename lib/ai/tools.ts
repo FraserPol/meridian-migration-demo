@@ -90,16 +90,34 @@ async function generateConfig({
 /**
  * Tool #3: generates the actual config text for the recommended approach.
  * Also deterministic/template-based — see lib/ai/migration-planner.ts.
+ *
+ * This is the only gated tool. Reading the inventory and asking for a
+ * recommendation are analysis; emitting the routing config that would
+ * actually move a bank's traffic between origins is the point where a
+ * human should be in the loop. `needsApproval` pauses the run here and
+ * makes the admin approve or deny before the step executes — the tool
+ * call, the approval decision, and any denial reason all land in the
+ * audit trail either way.
+ *
+ * WorkflowAgent reads `needsApproval` off the tool itself. The AI SDK
+ * core has since moved approval to a `toolApproval` option on
+ * streamText/generateText and marks this property deprecated, but
+ * @ai-sdk/workflow 1.0.70 explicitly passes `toolApproval: undefined`
+ * into its model call and resolves approval from the tool definition, so
+ * the tool-level property is the only path that works here. Revisit if
+ * the package starts forwarding `toolApproval`.
  */
 export const generateMigrationConfig = tool({
   description:
     "Generate the actual configuration snippets (next.config.ts, proxy.ts, or " +
     "nginx.conf) needed to execute a migration recommendation for a given route and " +
-    "approach. Call recommendStrategyForRoute first to get the approach.",
+    "approach. Call recommendStrategyForRoute first to get the approach. This tool " +
+    "requires human approval before it runs.",
   inputSchema: z.object({
     route: z.string(),
     approach: z.enum(["keep-domain-on-legacy", "point-domain-to-vercel"]),
   }),
+  needsApproval: true,
   execute: generateConfig,
 });
 

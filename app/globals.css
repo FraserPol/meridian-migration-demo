@@ -597,6 +597,77 @@ th {
   margin: 4px 0 0;
 }
 
+.tool-call-denied {
+  border-left-color: var(--danger, #c0392b);
+  background: rgba(192, 57, 43, 0.08);
+}
+
+/* Human-in-the-loop gate for the one tool that emits executable routing
+   config (lib/ai/tools.ts). Deliberately louder than a .tool-call row —
+   the run is parked until someone decides. */
+.approval-request {
+  border: 1px solid var(--accent);
+  background: rgba(79, 124, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 8px 0;
+  white-space: normal;
+}
+
+.approval-title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.approval-title code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  background: rgba(79, 124, 255, 0.15);
+  color: var(--accent-hover);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.approval-body {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.approval-request pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  background: #090c12;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 0 0 10px;
+}
+
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.approval-actions button {
+  font-size: 13px;
+  padding: 7px 16px;
+}
+
+.approval-deny {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+}
+
+.approval-deny:hover {
+  background: rgba(192, 57, 43, 0.15);
+  border-color: var(--danger, #c0392b);
+}
+
 .suggestions {
   display: flex;
   flex-wrap: wrap;

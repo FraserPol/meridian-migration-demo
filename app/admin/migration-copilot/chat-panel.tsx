@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
+import { WorkflowChatTransport } from "@ai-sdk/workflow";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { MigrationCopilotUIMessage } from "@/workflows/migration-copilot/workflow";
@@ -15,6 +16,52 @@ const SUGGESTIONS = [
   "Walk me through migrating /api/profile safely.",
   "What's the rollback plan for /admin/reports?",
 ];
+
+// sessionStorage, not localStorage: an in-flight run is only worth
+// rejoining for the life of this tab. Scoped per-tab so two tabs don't
+// fight over one run id.
+const RUN_ID_KEY = "migration-copilot:run-id";
+
+// Module scope, not component state: the transport has to outlive a
+// remount for a reconnect to still know which run it was following, and
+// the panel is a singleton on this page. Nothing here touches `window` at
+// import time, so it stays safe to evaluate during prerender.
+let currentRunId: string | null = null;
+
+function rememberRunId(runId: string | null) {
+  currentRunId = runId;
+  try {
+    if (runId) window.sessionStorage.setItem(RUN_ID_KEY, runId);
+    else window.sessionStorage.removeItem(RUN_ID_KEY);
+  } catch {
+    // Private mode or blocked storage: in-memory tracking still covers
+    // mid-session reconnects; only reload recovery is lost.
+  }
+}
+
+/**
+ * WorkflowChatTransport rather than DefaultChatTransport: when a response
+ * stream ends without a `finish` chunk — a Function hitting maxDuration
+ * mid-answer, a dropped connection — it reconnects to the still-running
+ * workflow using the run id from the POST's x-workflow-run-id header and
+ * resumes at the chunk it had already consumed, instead of losing the
+ * answer. The run id is also persisted so a full page reload can rejoin
+ * an answer that is still being generated.
+ */
+const copilotTransport = new WorkflowChatTransport<MigrationCopilotUIMessage>({
+  api: "/api/chat",
+  onChatSendMessage: (response) => {
+    const runId = response.headers.get("x-workflow-run-id");
+    if (runId) rememberRunId(runId);
+  },
+  onChatEnd: () => rememberRunId(null),
+  // The transport reconnects by chat id by default; this app's runs are
+  // addressed by workflow run id (app/api/chat/[runId]/stream), so the URL
+  // is rewritten to the run we actually recorded.
+  prepareReconnectToStreamRequest: ({ api, id }) => ({
+    api: `${api}/${encodeURIComponent(currentRunId ?? id)}/stream`,
+  }),
+});
 
 function formatCost(usd: string): string {
   const n = Number(usd);
@@ -131,9 +178,14 @@ export function ChatPanel() {
   // `===`. Switching on each `tool-<name>` literal would get real
   // per-tool narrowing from this type instead, at the cost of one case
   // per tool.
-  const { messages, sendMessage, status, error } = useChat<MigrationCopilotUIMessage>({
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
-  });
+  const { messages, sendMessage, status, error, addToolApprovalResponse, resumeStream } =
+    useChat<MigrationCopilotUIMessage>({
+      transport: copilotTransport,
+      // After the admin approves or denies, the decision has to go back to
+      // the paused run for it to continue — this resends automatically
+      // instead of making them type another message to unblock the agent.
+      sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+    });
   const [input, setInput] = useState("");
   const [simulateFailover, setSimulateFailover] = useState(false);
 
@@ -159,6 +211,25 @@ export function ChatPanel() {
     if (!el || !stickToBottomRef.current) return;
     el.scrollTop = el.scrollHeight;
   }, [messages, isBusy]);
+
+  // Reload recovery: if this tab was watching a run that never reported a
+  // `finish`, rejoin it. startIndex is negative so a reloaded page gets the
+  // tail of what it missed rather than replaying the whole answer.
+  useEffect(() => {
+    let stored: string | null = null;
+    try {
+      stored = window.sessionStorage.getItem(RUN_ID_KEY);
+    } catch {
+      return;
+    }
+    if (!stored) return;
+    currentRunId = stored;
+    resumeStream().catch(() => {
+      // The run already finished, expired, or isn't ours — nothing to
+      // rejoin, so drop the pointer and start clean.
+      rememberRunId(null);
+    });
+  }, [resumeStream]);
 
   function submit(text: string) {
     if (!text.trim() || isBusy) return;
@@ -203,7 +274,60 @@ export function ChatPanel() {
                   state?: string;
                   input?: unknown;
                   output?: unknown;
+                  approval?: { id: string; approved?: boolean; reason?: string };
                 };
+
+                // A gated tool (lib/ai/tools.ts `needsApproval`) parks the
+                // whole run here until the admin decides. Approving or
+                // denying resends automatically via sendAutomaticallyWhen.
+                if (p.state === "approval-requested" && p.approval) {
+                  const approvalId = p.approval.id;
+                  return (
+                    <div key={i} className="approval-request">
+                      <div className="approval-title">
+                        Approval required — <code>{toolName}</code>
+                      </div>
+                      <p className="approval-body">
+                        This tool generates the routing configuration that would move traffic
+                        for a live route. It does not run until you approve it.
+                      </p>
+                      {p.input !== undefined && (
+                        <pre>{JSON.stringify(p.input, null, 2).slice(0, 600)}</pre>
+                      )}
+                      <div className="approval-actions">
+                        <button
+                          type="button"
+                          onClick={() => addToolApprovalResponse({ id: approvalId, approved: true })}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          className="approval-deny"
+                          onClick={() =>
+                            addToolApprovalResponse({
+                              id: approvalId,
+                              approved: false,
+                              reason: "Denied by admin in the Migration Copilot UI.",
+                            })
+                          }
+                        >
+                          Deny
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (p.state === "output-denied") {
+                  return (
+                    <div key={i} className="tool-call tool-call-denied">
+                      <strong>tool:</strong> {toolName} <span>(denied — not executed)</span>
+                      {p.approval?.reason && <div>{p.approval.reason}</div>}
+                    </div>
+                  );
+                }
+
                 return (
                   <div key={i} className="tool-call">
                     <strong>tool:</strong> {toolName}{" "}

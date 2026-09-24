@@ -52,7 +52,14 @@ export async function POST(req: Request) {
   // The workflow streams raw ModelCallStreamPart chunks (WorkflowAgent's
   // provider-shaped format); convert to the UI message protocol useChat
   // expects here, at the response boundary.
+  //
+  // x-workflow-run-id is required, not informational: WorkflowChatTransport
+  // reads it to know which run to reconnect to, and throws without it. It's
+  // what makes a dropped stream (client navigating away, a Function timing
+  // out mid-answer) recoverable instead of a lost run — see
+  // app/api/chat/[runId]/stream/route.ts.
   return createUIMessageStreamResponse({
     stream: run.readable.pipeThrough(createModelCallToUIChunkTransform()),
+    headers: { "x-workflow-run-id": run.runId },
   });
 }
