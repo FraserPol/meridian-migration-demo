@@ -43,6 +43,13 @@
       "when": 1790209146667,
       "tag": "0005_copilot_run_error_message",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790257549701,
+      "tag": "0006_naive_maestro",
+      "breakpoints": true
     }
   ]
 }

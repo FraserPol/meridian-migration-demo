@@ -5,6 +5,9 @@ import { eq } from "drizzle-orm";
 import { getSession, VaultUnavailableError, VAULT_UNAVAILABLE_MESSAGE } from "@/lib/session";
 import { getDb } from "@/lib/db";
 import { profiles, watchlistItems, type Profile, type WatchlistItem } from "@/lib/db/schema";
+import { computeQuotes } from "@/lib/quotes";
+import { summarizePortfolio } from "@/lib/portfolio";
+import { PortfolioSummaryStrip } from "./portfolio-summary";
 
 // The session-gated DB read is isolated in <DashboardContent> below rather
 // than running at this top level, so this page has no unconditional dynamic
@@ -45,6 +48,11 @@ async function DashboardContent() {
     throw err;
   }
 
+  // Same computation the watchlist page uses (lib/portfolio.ts), so the
+  // headline numbers here can't drift from the ones a click away.
+  const quotes = computeQuotes(items.map((i) => i.ticker));
+  const summary = summarizePortfolio(items, new Map(quotes.map((q) => [q.ticker, q])));
+
   return (
     <>
       <h1>Welcome back{profile ? `, ${profile.displayName.split(" ")[0]}` : ""}</h1>
@@ -74,6 +82,8 @@ async function DashboardContent() {
           <Link href="/dashboard/profile">Edit profile →</Link>
         </div>
       )}
+
+      {items.length > 0 && <PortfolioSummaryStrip summary={summary} />}
 
       <div className="card">
         <h2>Watchlist</h2>

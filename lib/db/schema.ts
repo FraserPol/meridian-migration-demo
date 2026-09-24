@@ -50,6 +50,12 @@ export const watchlistItems = pgTable(
     // Snapshot of the price at the moment it was added, purely for demo
     // flavor in the UI ("added at $x, now at $y").
     addedAtPrice: numeric("added_at_price", { precision: 10, scale: 2 }),
+    // Holdings. Both nullable: an entry can be a pure watch (no position
+    // held), which is the difference between "tell me about AAPL" and "I
+    // own 40 shares of it". Present together or not at all — profit and
+    // loss needs both a size and a price paid to mean anything.
+    quantity: numeric("quantity", { precision: 16, scale: 4 }),
+    costBasis: numeric("cost_basis", { precision: 10, scale: 2 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -127,6 +133,28 @@ export const migrationCopilotRuns = pgTable("migration_copilot_runs", {
 });
 
 export type User = typeof users.$inferSelect;
+/**
+ * Price alerts on a watched ticker — "tell me when AAPL drops below $220".
+ *
+ * Deliberately has no `triggeredAt` column. Whether an alert has fired is
+ * derived by comparing its threshold against the current quote at render
+ * time (see lib/alerts.ts), so reading the page never writes to the
+ * database, and an alert that fires, un-fires and fires again stays
+ * truthful instead of latching on the first crossing.
+ */
+export const priceAlerts = pgTable("price_alerts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  ticker: text("ticker").notNull(),
+  // "above" fires at or over the threshold, "below" at or under it.
+  direction: text("direction").notNull(),
+  threshold: numeric("threshold", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Profile = typeof profiles.$inferSelect;
 export type WatchlistItem = typeof watchlistItems.$inferSelect;
+export type PriceAlert = typeof priceAlerts.$inferSelect;
 export type MigrationCopilotRun = typeof migrationCopilotRuns.$inferSelect;

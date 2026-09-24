@@ -9,6 +9,7 @@ import remarkGfm from "remark-gfm";
 import type { MigrationCopilotUIMessage } from "@/workflows/migration-copilot/workflow";
 import type { CopilotProviderRecord, MigrationCopilotRun } from "@/lib/db/schema";
 import { tierForModelId } from "@/lib/ai/routing";
+import { CodeBlock } from "./code-block";
 
 const SUGGESTIONS = [
   "What should we migrate first?",
@@ -16,6 +17,12 @@ const SUGGESTIONS = [
   "Walk me through migrating /api/profile safely.",
   "What's the rollback plan for /admin/reports?",
 ];
+
+// Only fenced code blocks are overridden; inline `code` keeps its default
+// rendering, since a copy button on a single word would be noise.
+const MARKDOWN_COMPONENTS = {
+  pre: ({ children }: { children?: React.ReactNode }) => <CodeBlock>{children}</CodeBlock>,
+};
 
 // sessionStorage, not localStorage: an in-flight run is only worth
 // rejoining for the life of this tab. Scoped per-tab so two tabs don't
@@ -309,7 +316,9 @@ export function ChatPanel() {
                 // rehype-raw is added, so model output can't inject markup.
                 return message.role === "assistant" ? (
                   <div key={i} className="chat-markdown">
-                    <Markdown remarkPlugins={[remarkGfm]}>{part.text}</Markdown>
+                    <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+                      {part.text}
+                    </Markdown>
                   </div>
                 ) : (
                   <span key={i}>{part.text}</span>
