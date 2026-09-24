@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withWorkflow } from "workflow/next";
+import { withBotId } from "botid/next/config";
 
 /**
  * Demo note (Step 2 of the SA take-home): in a real incremental migration,
@@ -48,7 +49,14 @@ const nextConfig: NextConfig = {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
   async rewrites() {
+    // `beforeFiles` is present but empty on purpose. withBotId merges its
+    // challenge-proxy rewrites by branching on `"beforeFiles" in rewrites`
+    // and otherwise spreading the return value as an array — so the object
+    // form without that key crashes the build with "(t || []) is not
+    // iterable". Keeping the key makes the object shape explicit and gives
+    // BotID somewhere to append.
     return {
+      beforeFiles: [],
       fallback: [],
     };
   },
@@ -66,4 +74,13 @@ const nextConfig: NextConfig = {
 
 // Compiles workflows/**'s "use workflow"/"use step" directives — see
 // workflows/migration-copilot/workflow.ts.
-export default withWorkflow(nextConfig);
+//
+// withBotId adds same-origin rewrites that proxy BotID's challenge script,
+// so ad-blockers and third-party script blockers can't quietly disable the
+// protection. Those rewrites are why the CSP above needs no new origin:
+// the challenge is served from this domain, covered by script-src 'self'.
+//
+// Order matters: withWorkflow returns a phase function, which withBotId's
+// signature doesn't accept, so BotID wraps the plain config object and
+// withWorkflow wraps the result.
+export default withWorkflow(withBotId(nextConfig));

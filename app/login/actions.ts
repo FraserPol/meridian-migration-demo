@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { checkBotId } from "botid/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
@@ -18,6 +19,22 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
 
   if (!email || !password) {
     return { error: "Enter both an email and a password." };
+  }
+
+  // Bot check before any credential work: a blocked request should cost no
+  // database round-trip and, more importantly, no password comparison —
+  // otherwise this action is still a usable credential-stuffing oracle,
+  // just a slower one. See instrumentation-client.ts for the paired client
+  // registration; a path missing there makes this call fail.
+  //
+  // BOTID_ENFORCE=0 downgrades this to observe-only. BotID classifies from
+  // a browser challenge, so a mistake here locks real people out of the
+  // app; the switch is the way back in without waiting on a code change.
+  if (process.env.BOTID_ENFORCE !== "0") {
+    const verification = await checkBotId();
+    if (verification.isBot) {
+      return { error: "This request looked automated. Please try again from a normal browser." };
+    }
   }
 
   const hdrs = await headers();
