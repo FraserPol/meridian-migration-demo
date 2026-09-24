@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { MigrationCopilotUIMessage } from "@/workflows/migration-copilot/workflow";
 import type { CopilotProviderRecord, MigrationCopilotRun } from "@/lib/db/schema";
 import { tierForModelId } from "@/lib/ai/routing";
@@ -181,7 +183,19 @@ export function ChatPanel() {
           <div key={message.id} className={`chat-message ${message.role}`}>
             {message.parts.map((part, i) => {
               if (part.type === "text") {
-                return <span key={i}>{part.text}</span>;
+                // The model is prompted to answer in markdown, so the
+                // assistant's text is rendered rather than shown raw. User
+                // text stays plain — it's typed, not generated, and
+                // rendering it would let a pasted `#` silently become a
+                // heading. react-markdown does not render raw HTML unless
+                // rehype-raw is added, so model output can't inject markup.
+                return message.role === "assistant" ? (
+                  <div key={i} className="chat-markdown">
+                    <Markdown remarkPlugins={[remarkGfm]}>{part.text}</Markdown>
+                  </div>
+                ) : (
+                  <span key={i}>{part.text}</span>
+                );
               }
               if (part.type.startsWith("tool-")) {
                 const toolName = part.type.replace("tool-", "");
