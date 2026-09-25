@@ -1,4 +1,5 @@
 import { ChatPanel } from "./chat-panel";
+import { PlatformStrip } from "../../platform-strip";
 
 export default function MigrationCopilotPage() {
   return (
@@ -13,6 +14,15 @@ export default function MigrationCopilotPage() {
         strategy, and generates the config to execute it — it never guesses at any of the three.
       </p>
       <ChatPanel />
+      <PlatformStrip
+        items={[
+          "Workflows (WorkflowAgent)",
+          "Durable steps + resumable streams",
+          "Human-in-the-loop approval",
+          "Vercel Sandbox",
+          "AI Gateway step-up routing",
+        ]}
+      />
     </>
   );
 }

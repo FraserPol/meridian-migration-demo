@@ -401,6 +401,77 @@ button.secondary {
   border-color: var(--panel-border);
 }
 
+/* The admin row is the one worth a reviewer's first click, so it carries
+   a visible resting state rather than only revealing itself on hover. */
+.demo-account-primary {
+  background: rgba(79, 124, 255, 0.07);
+  border-color: rgba(79, 124, 255, 0.35);
+}
+
+.badge-start {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  margin-right: 6px;
+  vertical-align: baseline;
+}
+
+/* Names the platform primitives in play on the current page. Kept quiet
+   on purpose — it should be findable by someone who wants to know what's
+   underneath, not compete with the product it sits below. */
+.platform-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 32px 0 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--panel-border);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.platform-strip-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.68rem;
+  opacity: 0.8;
+}
+
+.platform-strip ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.platform-strip li {
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+
+.platform-strip a {
+  margin-left: auto;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.platform-strip a:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+@media (max-width: 560px) {
+  .platform-strip a {
+    margin-left: 0;
+  }
+}
+
 .demo-account-btn:hover code {
   border-color: var(--accent);
 }

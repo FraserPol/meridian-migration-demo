@@ -1,18 +1,44 @@
 # Meridian Capital — Portfolio Watchlist (Vercel SA Take-Home Demo)
 
-A small Next.js app where a customer logs in, creates a profile, and
-tracks a stock watchlist — plus a **Migration Copilot**, an AI SDK + AI
-Gateway–powered tool aimed at the legacy IT admins deciding whether to
-move their own front end and app tier to Vercel.
+A bank's customer-facing portfolio app, plus a **Migration Copilot** — a
+durable AI agent that helps the legacy IT admins behind it plan and
+execute their own move to Vercel, and then *runs the config it generates*
+to prove it works.
 
-This is the take-home submission: design doc + working demo in one repo.
-Start with [`solution-architecture.md`](./solution-architecture.md) — the
-target-state architecture, the OIDC-based boundary-crossing pattern
-between Vercel and AWS/HCP Vault this demo implements, and the
-migration/rollout plan. Read that first for the why; this README is the
-how.
+**Live demo:** https://meridian-migration-demo.vercel.app — one click to
+sign in; the password is on the page. **Start with the admin account**
+(marked *Start here*): it's where the platform work is.
 
-**Live demo:** https://meridian-migration-demo.vercel.app
+### The 60-second tour
+
+1. Sign in as `admin@meridiancapital.demo` → ask *"What should we migrate
+   first?"* The agent runs as a durable Workflow: each tool call is a
+   replayable step, the stream survives a refresh, and a cheap classifier
+   decides per-turn whether the question needs the frontier model.
+2. Ask it to *"generate the migration config for /watchlist"*. The run
+   **pauses for your approval** — emitting routing config for a bank's
+   traffic is where a human belongs.
+3. Approve it. The generated `next.config.ts` is then **executed inside a
+   Vercel Sandbox**, which calls its `rewrites()` and asserts the route
+   table it actually produces. You get a verdict, not a promise.
+4. Sign in as `jordan.reyes@meridiancapital.demo` for the customer side:
+   holdings, P&L, price alerts, and a cached AI insight.
+
+### What it's built on
+
+[Workflows](https://vercel.com/docs/workflows) · [Sandbox](https://vercel.com/docs/sandbox) ·
+[AI Gateway](https://vercel.com/docs/ai-gateway) · [BotID](https://vercel.com/docs/botid) ·
+Cache Components (PPR) · Marketplace Postgres + Drizzle · HCP Vault OIDC
+(dynamic DB credentials, no static password)
+
+**[`ARCHITECTURE.md`](./ARCHITECTURE.md) is the short version** — one
+paragraph per primitive, naming the file that uses it and the specific
+problem it solved, trade-offs included.
+[`solution-architecture.md`](./solution-architecture.md) is the full
+design doc: target-state architecture, the OIDC boundary-crossing pattern
+between Vercel and AWS/HCP Vault, and the migration/rollout plan. This
+README is the how.
+
 **Repo:** https://github.com/FraserPol/meridian-migration-demo (this repo)
 
 **Deploying this yourself?** Two paths, not three — see "Deploying to

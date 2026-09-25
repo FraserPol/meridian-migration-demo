@@ -11,6 +11,7 @@ import { fingerprintPortfolio } from "@/lib/ai/insights";
 import { PortfolioSummaryStrip } from "./portfolio-summary";
 import { InsightCard } from "./insight-card";
 import { latestInsight } from "@/lib/ai/insight-store";
+import { PlatformStrip } from "../platform-strip";
 
 // The session-gated DB read is isolated in <DashboardContent> below rather
 // than running at this top level, so this page has no unconditional dynamic
@@ -149,6 +150,16 @@ async function DashboardContent() {
           </aside>
         )}
       </div>
+
+      <PlatformStrip
+        items={[
+          "Cache Components (PPR)",
+          "AI Gateway",
+          "Marketplace Postgres + Drizzle",
+          "HCP Vault OIDC",
+          "Speed Insights",
+        ]}
+      />
     </>
   );
 }

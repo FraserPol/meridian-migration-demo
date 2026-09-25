@@ -5,14 +5,30 @@ import { login } from "./actions";
 
 const DEMO_PASSWORD = "VercelDemo!2026";
 
+// Admin first, deliberately. A reviewer's attention is the scarce
+// resource here, and the platform work worth looking at — a durable
+// agent, the approval gate, config executed in a sandbox — all lives
+// behind this account. Led by the watchlist, a short visit sees a CRUD
+// app and stops there.
 const DEMO_ACCOUNTS = [
-  { email: "jordan.reyes@meridiancapital.demo", role: "customer", desc: "Populated watchlist" },
+  {
+    email: "admin@meridiancapital.demo",
+    role: "admin",
+    desc: "Migration Copilot — durable AI agent, human approval gate, generated config executed in a Vercel Sandbox",
+    highlight: "Start here",
+  },
+  {
+    email: "jordan.reyes@meridiancapital.demo",
+    role: "customer",
+    desc: "Portfolio with holdings, P&L, price alerts and a cached AI insight",
+    highlight: null,
+  },
   {
     email: "alex.chen@meridiancapital.demo",
     role: "customer",
     desc: "No profile yet — onboarding flow",
+    highlight: null,
   },
-  { email: "admin@meridiancapital.demo", role: "admin", desc: "Migration Copilot" },
 ] as const;
 
 export default function LoginPage() {
@@ -88,7 +104,7 @@ export default function LoginPage() {
               <li key={account.email}>
                 <button
                   type="button"
-                  className="demo-account-btn"
+                  className={`demo-account-btn${account.highlight ? " demo-account-primary" : ""}`}
                   onClick={() => fillAccount(account.email)}
                   aria-label={`Fill email and password for ${account.email}`}
                 >
@@ -96,7 +112,16 @@ export default function LoginPage() {
                     <code>{copied === account.email ? "Copied ✓ — filled in above" : account.email}</code>
                     <span className="badge">{account.role}</span>
                   </div>
-                  <span className="demo-account-desc">{account.desc}</span>
+                  {/* The highlight sits on the description line, not beside
+                      the address: a third chip up there pushes the role
+                      badge onto its own row and breaks alignment with the
+                      other accounts. */}
+                  <span className="demo-account-desc">
+                    {account.highlight && (
+                      <span className="badge badge-start">{account.highlight}</span>
+                    )}
+                    {account.desc}
+                  </span>
                 </button>
               </li>
             ))}
