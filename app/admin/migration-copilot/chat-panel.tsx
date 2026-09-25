@@ -24,6 +24,53 @@ const MARKDOWN_COMPONENTS = {
   pre: ({ children }: { children?: React.ReactNode }) => <CodeBlock>{children}</CodeBlock>,
 };
 
+interface SandboxValidation {
+  status: "passed" | "failed" | "skipped";
+  checks: { file: string; method: string; passed: boolean; detail: string }[];
+  durationMs?: number;
+  activeCpuMs?: number;
+  reason?: string;
+}
+
+const VERDICT_LABEL: Record<SandboxValidation["status"], string> = {
+  passed: "Verified in Vercel Sandbox",
+  failed: "Sandbox validation failed",
+  skipped: "Not validated",
+};
+
+/**
+ * The generated config's verdict gets its own panel above the raw tool
+ * JSON. "Executed" and "parsed" are shown per file rather than rolled into
+ * one badge on purpose: next.config.ts is genuinely run and its route table
+ * asserted, while proxy.ts is only parsed (it imports next/server, which
+ * doesn't resolve outside a deployed project). Collapsing those into a
+ * single "validated" claim would overstate what actually happened.
+ */
+function SandboxVerdict({ validation }: { validation: SandboxValidation }) {
+  return (
+    <div className={`sandbox-verdict sandbox-verdict-${validation.status}`}>
+      <div className="sandbox-verdict-head">
+        <strong>{VERDICT_LABEL[validation.status]}</strong>
+        {validation.status !== "skipped" && validation.durationMs !== undefined && (
+          <span className="sandbox-verdict-meta">
+            {(validation.durationMs / 1000).toFixed(1)}s in a Firecracker microVM
+            {validation.activeCpuMs !== undefined && ` · ${validation.activeCpuMs}ms billed CPU`}
+          </span>
+        )}
+      </div>
+      {validation.reason && <div className="sandbox-verdict-reason">{validation.reason}</div>}
+      <ul className="sandbox-checks">
+        {validation.checks.map((c, i) => (
+          <li key={i} className={c.passed ? "check-pass" : "check-fail"}>
+            <code>{c.file}</code> <span className="check-method">{c.method}</span>
+            <div>{c.detail}</div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // sessionStorage, not localStorage: an in-flight run is only worth
 // rejoining for the life of this tab. Scoped per-tab so two tabs don't
 // fight over one run id.
@@ -384,10 +431,14 @@ export function ChatPanel() {
                   );
                 }
 
+                const validation = (p.output as { validation?: SandboxValidation } | undefined)
+                  ?.validation;
+
                 return (
                   <div key={i} className="tool-call">
                     <strong>tool:</strong> {toolName}{" "}
                     {p.state && <span style={{ opacity: 0.7 }}>({p.state})</span>}
+                    {validation && <SandboxVerdict validation={validation} />}
                     {p.output !== undefined && (
                       <pre>{JSON.stringify(p.output, null, 2).slice(0, 1200)}</pre>
                     )}

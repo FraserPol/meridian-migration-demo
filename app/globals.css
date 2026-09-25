@@ -997,6 +997,90 @@ th {
   background: rgba(192, 57, 43, 0.08);
 }
 
+/* Verdict from executing the generated config in a Vercel Sandbox
+   (lib/ai/sandbox-validator.ts). Sits above the raw tool JSON because it
+   is the part an approver actually needs to read. */
+.sandbox-verdict {
+  margin: 0.6rem 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #d8dee9);
+  background: rgba(127, 127, 127, 0.06);
+  font-size: 0.86rem;
+}
+
+.sandbox-verdict-passed {
+  border-color: var(--success, #2e8b57);
+  background: rgba(46, 139, 87, 0.08);
+}
+
+.sandbox-verdict-failed {
+  border-color: var(--danger, #c0392b);
+  background: rgba(192, 57, 43, 0.08);
+}
+
+.sandbox-verdict-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  align-items: baseline;
+}
+
+.sandbox-verdict-meta,
+.sandbox-verdict-reason {
+  opacity: 0.75;
+  font-size: 0.8rem;
+}
+
+.sandbox-verdict-reason {
+  margin-top: 0.3rem;
+}
+
+.sandbox-checks {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.sandbox-checks li {
+  padding-left: 1.1rem;
+  position: relative;
+  line-height: 1.4;
+}
+
+.sandbox-checks li::before {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.sandbox-checks .check-pass::before {
+  content: "✓";
+  color: var(--success, #2e8b57);
+}
+
+.sandbox-checks .check-fail::before {
+  content: "✕";
+  color: var(--danger, #c0392b);
+}
+
+.check-method {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.65;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 0 0.3rem;
+}
+
+.sandbox-checks li div {
+  opacity: 0.85;
+  margin-top: 0.15rem;
+}
+
 /* Human-in-the-loop gate for the one tool that emits executable routing
    config (lib/ai/tools.ts). Deliberately louder than a .tool-call row —
    the run is parked until someone decides. */

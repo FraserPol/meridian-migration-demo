@@ -19,6 +19,7 @@
     "@ai-sdk/react": "^4.0.72",
     "@ai-sdk/workflow": "^1.0.70",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/sandbox": "^3.5.0",
     "@vercel/speed-insights": "^2.0.0",
     "@workflow/next": "^4.1.6",
     "ai": "^7.0.69",

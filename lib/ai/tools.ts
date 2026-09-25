@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { getLegacyRouteInventory as readLegacyRouteInventory } from "@/lib/legacy-inventory";
 import { recommendMigrationStrategy, generateMigrationSnippet } from "./migration-planner";
+import { validateGeneratedConfig } from "./sandbox-validator";
 
 /**
  * Each tool's `execute` is a durable workflow step ("use step") — see
@@ -84,7 +85,13 @@ async function generateConfig({
   if (!match) {
     return { error: `No route "${route}" found in the legacy inventory.` };
   }
-  return { snippets: generateMigrationSnippet(match, approach) };
+  const snippets = generateMigrationSnippet(match, approach);
+  // Executed inline rather than as its own "use step" so the generate-and-
+  // verify pair retries as one unit: the snippets are deterministic, so a
+  // retry after a flaky sandbox re-validates the identical config rather
+  // than leaving a verified-once result attached to a re-generated one.
+  const validation = await validateGeneratedConfig(snippets, route, approach);
+  return { snippets, validation };
 }
 
 /**
@@ -112,7 +119,10 @@ export const generateMigrationConfig = tool({
     "Generate the actual configuration snippets (next.config.ts, proxy.ts, or " +
     "nginx.conf) needed to execute a migration recommendation for a given route and " +
     "approach. Call recommendStrategyForRoute first to get the approach. This tool " +
-    "requires human approval before it runs.",
+    "requires human approval before it runs. After generating, it executes the config " +
+    "in an isolated Vercel Sandbox and returns a `validation` result — when reporting " +
+    "back, say whether validation passed and what was actually verified, and never " +
+    "claim config was tested if validation was skipped.",
   inputSchema: z.object({
     route: z.string(),
     approach: z.enum(["keep-domain-on-legacy", "point-domain-to-vercel"]),
