@@ -86,54 +86,67 @@ async function DashboardContent() {
     <>
       <h1>Welcome back{profile ? `, ${profile.displayName.split(" ")[0]}` : ""}</h1>
 
-      {!profile && (
-        <div className="card">
-          <h2>Finish setting up your profile</h2>
-          <p style={{ color: "var(--muted)" }}>
-            You&apos;re signed in, but you haven&apos;t created a profile yet — this is the
-            onboarding state the take-home demo intentionally leaves for the{" "}
-            <code>alex.chen</code> demo account.
-          </p>
-          <Link href="/dashboard/profile">
-            <button>Create profile</button>
-          </Link>
-        </div>
-      )}
-
-      {profile && (
-        <div className="card">
-          <h2>Profile</h2>
-          <p>
-            <strong>{profile.displayName}</strong> · {profile.riskTolerance} risk tolerance
-            <br />
-            <span style={{ color: "var(--muted)" }}>Goal: {profile.investmentGoal}</span>
-          </p>
-          <Link href="/dashboard/profile">Edit profile →</Link>
-        </div>
-      )}
-
       {items.length > 0 && <PortfolioSummaryStrip summary={summary} />}
 
-      {canAdvise && (
-        <InsightCard
-          insight={stored?.insight ?? null}
-          createdAt={stored?.createdAt ?? null}
-          stale={stored?.stale ?? false}
-        />
-      )}
+      {/* The AI insight sits in its own column so it reads as commentary
+          alongside the account rather than competing with it: profile and
+          watchlist are what the customer came for. The grid class is only
+          applied when there's actually an insight to show, so a customer
+          without positions gets a full-width main column instead of a
+          narrowed one beside empty space. Below the breakpoint the aside
+          follows the main column, keeping that same priority on mobile. */}
+      <div className={canAdvise ? "dashboard-columns" : undefined}>
+        <div className="dashboard-main">
+          {!profile && (
+            <div className="card">
+              <h2>Finish setting up your profile</h2>
+              <p style={{ color: "var(--muted)" }}>
+                You&apos;re signed in, but you haven&apos;t created a profile yet — this is the
+                onboarding state the take-home demo intentionally leaves for the{" "}
+                <code>alex.chen</code> demo account.
+              </p>
+              <Link href="/dashboard/profile">
+                <button>Create profile</button>
+              </Link>
+            </div>
+          )}
 
-      <div className="card">
-        <h2>Watchlist</h2>
-        {items.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>
-            No tickers yet. <Link href="/dashboard/watchlist">Add your first one →</Link>
-          </p>
-        ) : (
-          <p style={{ color: "var(--muted)" }}>
-            Tracking {items.length} ticker{items.length === 1 ? "" : "s"}:{" "}
-            {items.map((i) => i.ticker).join(", ")}.{" "}
-            <Link href="/dashboard/watchlist">View watchlist →</Link>
-          </p>
+          {profile && (
+            <div className="card">
+              <h2>Profile</h2>
+              <p>
+                <strong>{profile.displayName}</strong> · {profile.riskTolerance} risk tolerance
+                <br />
+                <span style={{ color: "var(--muted)" }}>Goal: {profile.investmentGoal}</span>
+              </p>
+              <Link href="/dashboard/profile">Edit profile →</Link>
+            </div>
+          )}
+
+          <div className="card">
+            <h2>Watchlist</h2>
+            {items.length === 0 ? (
+              <p style={{ color: "var(--muted)" }}>
+                No tickers yet. <Link href="/dashboard/watchlist">Add your first one →</Link>
+              </p>
+            ) : (
+              <p style={{ color: "var(--muted)" }}>
+                Tracking {items.length} ticker{items.length === 1 ? "" : "s"}:{" "}
+                {items.map((i) => i.ticker).join(", ")}.{" "}
+                <Link href="/dashboard/watchlist">View watchlist →</Link>
+              </p>
+            )}
+          </div>
+        </div>
+
+        {canAdvise && (
+          <aside className="dashboard-aside">
+            <InsightCard
+              insight={stored?.insight ?? null}
+              createdAt={stored?.createdAt ?? null}
+              stale={stored?.stale ?? false}
+            />
+          </aside>
         )}
       </div>
     </>

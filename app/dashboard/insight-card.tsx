@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { requestInsight } from "./insight-actions";
 
@@ -22,6 +22,30 @@ export function InsightCard({
 }) {
   const [state, formAction, pending] = useActionState(requestInsight, undefined);
 
+  // Collapsed by default. In the dashboard's narrow right-hand column a
+  // four-paragraph insight runs several times the height of the account
+  // cards beside it, which makes the commentary dominate the page it's
+  // meant to sit alongside. The toggle only appears when the text actually
+  // overflows, so a short insight doesn't get a button that does nothing —
+  // that has to be measured after layout rather than guessed from string
+  // length, since wrapping depends on the column width.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || expanded) return;
+    // Only measured while collapsed: once expanded the clamp is lifted, so
+    // scrollHeight and clientHeight match and this would conclude the text
+    // no longer overflows, removing the control needed to collapse it again.
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 4);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [insight, expanded]);
+
   return (
     <div className="card insight-card">
       <div className="insight-header">
@@ -36,9 +60,22 @@ export function InsightCard({
               Your portfolio has changed since this was written.
             </p>
           )}
-          <div className="chat-markdown insight-body">
+          <div
+            ref={bodyRef}
+            className={`chat-markdown insight-body${expanded ? "" : " insight-body-clamped"}`}
+          >
             <Markdown>{insight}</Markdown>
           </div>
+          {(overflows || expanded) && (
+            <button
+              type="button"
+              className="link-button insight-expand"
+              aria-expanded={expanded}
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? "Show less" : "Read full insight"}
+            </button>
+          )}
           <div className="insight-footer">
             {createdAt && (
               <span>

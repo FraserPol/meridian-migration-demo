@@ -128,6 +128,48 @@ a {
   margin-bottom: 20px;
 }
 
+/* Dashboard two-column split: account on the left, AI commentary in a
+   narrower aside on the right. `align-items: start` stops the insight
+   card stretching to the height of the main column, and minmax(0, 1fr)
+   lets the main column shrink rather than being forced wide by long
+   content (a ticker list, a goal string) and pushing the page sideways. */
+.dashboard-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 20px;
+  align-items: start;
+}
+
+.dashboard-aside .card {
+  margin-bottom: 0;
+}
+
+/* Keeps the insight roughly the height of the account cards beside it.
+   The mask fades the cut rather than slicing a line of text in half, so
+   it reads as "there is more" instead of as a rendering glitch. */
+.insight-body-clamped {
+  max-height: 15rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 68%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 68%, transparent 100%);
+}
+
+.insight-expand {
+  margin-top: 4px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Restores the gap the card's own margin normally provides once the
+     aside is stacked underneath rather than beside. */
+  .dashboard-aside .card {
+    margin-bottom: 20px;
+  }
+}
+
 .nav {
   display: flex;
   align-items: center;
